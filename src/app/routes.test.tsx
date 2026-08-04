@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import type { Session } from '@supabase/supabase-js'
+import { ThemeProvider } from '../features/theme/ThemeProvider'
 
 const useAuthMock = vi.fn()
 
@@ -15,7 +16,13 @@ const fakeSession = { access_token: 'token' } as unknown as Session
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
-  return render(<RouterProvider router={router} />)
+  // /perfil renders ThemeToggle, which needs a ThemeProvider above it;
+  // wrapping every render keeps this helper usable for all four destinations.
+  return render(
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>,
+  )
 }
 
 describe('routes', () => {
@@ -33,11 +40,16 @@ describe('routes', () => {
     },
   )
 
-  it('deja pasar las cuatro rutas cuando hay sesión', () => {
+  it.each([
+    ['/', 'Entrenar'],
+    ['/rutinas', 'Rutinas'],
+    ['/progreso', 'Progreso'],
+    ['/perfil', 'Perfil'],
+  ])('deja pasar %s cuando hay sesión', (path, heading) => {
     useAuthMock.mockReturnValue({ session: fakeSession, loading: false })
-    renderAt('/rutinas')
+    renderAt(path)
 
-    expect(screen.getByRole('heading', { name: 'Rutinas' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
     expect(screen.queryByText('Correo')).not.toBeInTheDocument()
   })
 
