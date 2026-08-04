@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
-if (!window.matchMedia) {
+// Este setup se ejecuta para todos los archivos de prueba, incluidos los que
+// fijan `environment: 'node'` (como tests/rls/*), donde `window` no existe.
+if (typeof window !== 'undefined' && !window.matchMedia) {
   window.matchMedia = (query: string) =>
     ({
       matches: false,
