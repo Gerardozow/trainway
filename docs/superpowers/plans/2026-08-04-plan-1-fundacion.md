@@ -843,6 +843,15 @@ describe('RLS de profiles', () => {
     expect(data).toHaveLength(1)
   })
 
+  it('impide crear un perfil a nombre de otro usuario', async () => {
+    const { error } = await bob.client
+      .from('profiles')
+      .insert({ id: alice.id, username: 'hijack_user' })
+
+    expect(error).not.toBeNull()
+    expect(error?.code).toBe('42501')
+  })
+
   it('impide a un usuario modificar el perfil de otro', async () => {
     const { data, error } = await bob.client
       .from('profiles')
@@ -877,18 +886,35 @@ describe('RLS de profiles', () => {
   })
 
   it('deja leer los perfiles a un visitante sin sesión', async () => {
-    const { error } = await anonClient().from('profiles').select('username').limit(1)
+    const known = `pub_${Date.now().toString().slice(-6)}`
+    const { error: setupError } = await alice.client
+      .from('profiles')
+      .update({ username: known, display_name: 'Alice Pública' })
+      .eq('id', alice.id)
+    expect(setupError).toBeNull()
+
+    const { data, error } = await anonClient()
+      .from('profiles')
+      .select('username, display_name')
+      .eq('id', alice.id)
+      .single()
+
     expect(error).toBeNull()
+    expect(data?.username).toBe(known)
+    expect(data?.display_name).toBe('Alice Pública')
   })
 })
 ```
 
-- [ ] **Step 7: Hacer que Vitest cargue `.env.local` y ejecutar para ver fallar**
+Nota sobre la prueba anterior: leer con `.limit(1)` y solo comprobar `error === null` es una prueba vacía — si `profiles_select_all` se rompiera a `using (false)`, PostgREST devolvería `[]` con `error === null` y la prueba seguiría en verde. Por eso lee un perfil conocido con `.eq(...).single()` y compara contenido real: si la política se rompe, `.single()` sobre cero filas devuelve un error, y la prueba lo detecta.
 
-En `vite.config.ts`, añadir `import { loadEnv } from 'vite'` y envolver la configuración para exponer las variables al proceso de pruebas. Reemplazar el archivo completo:
+- [ ] **Step 7: Hacer que Vitest cargue `.env.local` y separar las pruebas de unidad de las de RLS**
+
+En `vite.config.ts`, añadir `import { loadEnv } from 'vite'` y envolver la configuración para exponer las variables al proceso de pruebas. Las pruebas de RLS hablan con Postgres bajo Node y no deben cargar el `setupFiles` pensado para jsdom, así que en lugar de un único `test` se declaran dos proyectos de Vitest — `unit` (jsdom, como hasta ahora) y `rls` (Node, sin `setupFiles`, solo `tests/rls/**`). Esto es lo que permite que `pnpm test` corra sin Supabase levantado. Reemplazar el archivo completo:
 
 ```typescript
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, configDefaults } from 'vitest/config'
+import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -901,19 +927,43 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     test: {
-      globals: true,
-      environment: 'jsdom',
-      setupFiles: ['./tests/setup.ts'],
-      css: true,
+      // Dos proyectos separados: "unit" (jsdom, componentes) y "rls" (node,
+      // habla directo con Postgres/Supabase). Separarlos permite que `pnpm test`
+      // corra sin Supabase levantado, y que cada uno tenga su propio entorno y
+      // setupFiles sin que se pisen entre sí.
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'unit',
+            globals: true,
+            environment: 'jsdom',
+            setupFiles: ['./tests/setup.ts'],
+            css: true,
+            exclude: [...configDefaults.exclude, 'tests/rls/**'],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'rls',
+            globals: true,
+            environment: 'node',
+            include: ['tests/rls/**/*.test.ts'],
+          },
+        },
+      ],
     },
   }
 })
 ```
 
-Añadir a los scripts de `package.json`:
+Actualizar los scripts de `package.json` — los dos primeros ya existían desde la Tarea 1 y ahora apuntan al proyecto `unit`; los cuatro siguientes son nuevos:
 
 ```json
-"test:rls": "vitest run tests/rls",
+"test": "vitest run --project=unit",
+"test:watch": "vitest --project=unit",
+"test:rls": "vitest run --project=rls",
 "db:reset": "supabase db reset",
 "db:start": "supabase start",
 "db:stop": "supabase stop"
@@ -924,7 +974,9 @@ Ejecutar:
 ```bash
 pnpm test:rls
 ```
-Esperado: PASA, 6 pruebas. La migración ya se aplicó en el Step 4, así que este paso confirma que las pruebas corren y que las políticas hacen lo que dicen. Si falla con `fetch failed`, Supabase no está levantado: ejecutar `pnpm db:start`. Si falla porque `SUPABASE_SERVICE_ROLE_KEY` llega vacía, revisar que `.env.local` exista y que `vite.config.ts` tenga el `loadEnv` de este paso.
+Esperado: PASA, 7 pruebas. La migración ya se aplicó en el Step 4, así que este paso confirma que las pruebas corren y que las políticas hacen lo que dicen. Si falla con `fetch failed`, Supabase no está levantado: ejecutar `pnpm db:start`. Si falla porque `SUPABASE_SERVICE_ROLE_KEY` llega vacía, revisar que `.env.local` exista y que `vite.config.ts` tenga el `loadEnv` de este paso.
+
+`pnpm test` (sin `:rls`) solo corre el proyecto `unit` y no necesita Supabase levantado — verificar deteniendo Supabase (`pnpm db:stop`) y confirmando que `pnpm test` sigue en verde.
 
 - [ ] **Step 8: Verificar que las pruebas realmente prueban algo**
 
@@ -938,7 +990,7 @@ Esperado: FALLA la prueba `permite al usuario actualizar su propio perfil`. Esto
 ```bash
 pnpm db:reset && pnpm test:rls
 ```
-Esperado: PASA, 6 pruebas.
+Esperado: PASA, 7 pruebas.
 
 - [ ] **Step 9: Commit**
 
@@ -1838,8 +1890,8 @@ pruebas en <http://127.0.0.1:54324>.
 |---|---|
 | `pnpm dev` | Servidor de desarrollo |
 | `pnpm build` | Compilación de producción |
-| `pnpm test` | Toda la suite |
-| `pnpm test:rls` | Solo las pruebas de aislamiento de la base |
+| `pnpm test` | Suite de unidad (jsdom); no necesita Supabase levantado |
+| `pnpm test:rls` | Pruebas de aislamiento de RLS; requiere Supabase levantado |
 | `pnpm db:reset` | Recrea la base local y aplica las migraciones |
 
 ## Acceso con Google
@@ -1857,12 +1909,13 @@ alguna vez aparece con prefijo `VITE_`, es un defecto grave: rotar la clave.
 
 - [ ] **Step 11: Ejecutar la suite completa**
 
-Supabase tiene que estar levantado: la suite completa incluye las pruebas de RLS, que hablan con Postgres.
+`pnpm test` y `pnpm test:rls` son proyectos de Vitest separados (Tarea 3, Step 7): el primero corre bajo jsdom y no toca la red, el segundo habla con Postgres a través de Supabase. Para ejecutar "todo" hacen falta ambos comandos, y solo el segundo necesita Supabase levantado.
 
 ```bash
-pnpm db:start && pnpm test
+pnpm test
+pnpm db:start && pnpm test:rls
 ```
-Esperado: PASAN todas las pruebas de las cinco tareas — `formatWeight` (4), `theme-storage` (5), `ThemeToggle` (3), `profile-repository` (6), `auth-repository` (5), `AppShell` (2), y RLS de `profiles` (6). Total 31.
+Esperado: `pnpm test` PASA con todas las pruebas de unidad de las cinco tareas — `formatWeight` (4), `theme-storage` (5), `ThemeToggle` (3), `profile-repository` (6), `auth-repository` (5), `AppShell` (2), total 25 — sin necesitar Supabase levantado. `pnpm test:rls` PASA con las 7 pruebas de aislamiento de `profiles`. Gran total: 32.
 
 - [ ] **Step 12: Commit**
 

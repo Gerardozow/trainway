@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, configDefaults } from 'vitest/config'
 import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -12,10 +12,32 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     test: {
-      globals: true,
-      environment: 'jsdom',
-      setupFiles: ['./tests/setup.ts'],
-      css: true,
+      // Dos proyectos separados: "unit" (jsdom, componentes) y "rls" (node,
+      // habla directo con Postgres/Supabase). Separarlos permite que `pnpm test`
+      // corra sin Supabase levantado, y que cada uno tenga su propio entorno y
+      // setupFiles sin que se pisen entre sí.
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'unit',
+            globals: true,
+            environment: 'jsdom',
+            setupFiles: ['./tests/setup.ts'],
+            css: true,
+            exclude: [...configDefaults.exclude, 'tests/rls/**'],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'rls',
+            globals: true,
+            environment: 'node',
+            include: ['tests/rls/**/*.test.ts'],
+          },
+        },
+      ],
     },
   }
 })

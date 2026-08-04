@@ -34,6 +34,15 @@ describe('RLS de profiles', () => {
     expect(data).toHaveLength(1)
   })
 
+  it('impide crear un perfil a nombre de otro usuario', async () => {
+    const { error } = await bob.client
+      .from('profiles')
+      .insert({ id: alice.id, username: 'hijack_user' })
+
+    expect(error).not.toBeNull()
+    expect(error?.code).toBe('42501')
+  })
+
   it('impide a un usuario modificar el perfil de otro', async () => {
     const { data, error } = await bob.client
       .from('profiles')
@@ -68,7 +77,21 @@ describe('RLS de profiles', () => {
   })
 
   it('deja leer los perfiles a un visitante sin sesión', async () => {
-    const { error } = await anonClient().from('profiles').select('username').limit(1)
+    const known = `pub_${Date.now().toString().slice(-6)}`
+    const { error: setupError } = await alice.client
+      .from('profiles')
+      .update({ username: known, display_name: 'Alice Pública' })
+      .eq('id', alice.id)
+    expect(setupError).toBeNull()
+
+    const { data, error } = await anonClient()
+      .from('profiles')
+      .select('username, display_name')
+      .eq('id', alice.id)
+      .single()
+
     expect(error).toBeNull()
+    expect(data?.username).toBe(known)
+    expect(data?.display_name).toBe('Alice Pública')
   })
 })
