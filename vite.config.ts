@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => {
             environment: 'jsdom',
             setupFiles: ['./tests/setup.ts'],
             css: true,
-            exclude: [...configDefaults.exclude, 'tests/rls/**'],
+            exclude: [...configDefaults.exclude, 'tests/rls/**', 'tests/edge/**'],
           },
         },
         {
@@ -70,6 +70,13 @@ export default defineConfig(({ mode }) => {
             globals: true,
             environment: 'node',
             include: ['tests/rls/**/*.test.ts'],
+          },
+        },
+        {
+          test: {
+            name: 'edge',
+            environment: 'node',
+            include: ['tests/edge/**/*.test.ts'],
           },
         },
       ],

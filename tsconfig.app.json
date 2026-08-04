@@ -23,5 +23,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src", "tests"],
-  "exclude": ["tests/rls"]
+  "exclude": ["tests/rls", "tests/edge"]
 }
