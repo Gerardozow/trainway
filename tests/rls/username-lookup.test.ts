@@ -28,6 +28,15 @@ describe('funciones de búsqueda de username', () => {
     expect(data).toBe(email)
   })
 
+  it('encuentra el correo aunque el username venga en mayúsculas', async () => {
+    const { data, error } = await adminClient().rpc('email_for_username', {
+      p_username: username.toUpperCase(),
+    })
+
+    expect(error).toBeNull()
+    expect(data).toBe(email)
+  })
+
   it('devuelve null para un username que no existe', async () => {
     const { data, error } = await adminClient().rpc('email_for_username', {
       p_username: 'no_existe_jamas',
@@ -38,19 +47,25 @@ describe('funciones de búsqueda de username', () => {
   })
 
   it('niega la búsqueda de correo a un visitante sin sesión', async () => {
-    const { error } = await anonClient().rpc('email_for_username', {
+    const { data, error } = await anonClient().rpc('email_for_username', {
       p_username: username,
     })
 
+    // Se afirman ambas cosas: un error (algo salió mal) por sí solo no
+    // distingue "permiso denegado" de "la función no existe o el RPC está mal
+    // escrito" — ambos casos producen un error no nulo. Lo que sí distingue
+    // una denegación real es que el correo jamás viaja en `data`.
     expect(error).not.toBeNull()
+    expect(data).toBeNull()
   })
 
   it('niega la búsqueda de correo a un usuario con sesión', async () => {
-    const { error } = await alice.client.rpc('email_for_username', {
+    const { data, error } = await alice.client.rpc('email_for_username', {
       p_username: username,
     })
 
     expect(error).not.toBeNull()
+    expect(data).toBeNull()
   })
 
   it('reporta un username tomado como no disponible', async () => {

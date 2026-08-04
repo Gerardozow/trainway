@@ -91,7 +91,7 @@ as $$
   select u.email
   from public.profiles p
   join auth.users u on u.id = p.id
-  where p.username = p_username;
+  where p.username = lower(p_username);
 $$;
 
 revoke execute on function public.email_for_username(text) from public;
