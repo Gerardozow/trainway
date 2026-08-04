@@ -620,7 +620,7 @@ En `index.html`, cambiar el `<title>` a `Trainway` y añadir dentro de `<head>`,
     try {
       var stored = localStorage.getItem('trainway:theme')
       var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      var dark = stored === 'dark' || ((stored === 'system' || !stored) && prefersDark)
+      var dark = stored === 'dark' || (stored !== 'light' && prefersDark)
       if (dark) document.documentElement.classList.add('dark')
     } catch (e) {}
   })()
