@@ -18,7 +18,7 @@ export function AppShell() {
         aria-label="Navegación principal"
         className="fixed inset-x-0 bottom-0 border-t border-border bg-surface-raised"
       >
-        <ul className="mx-auto flex max-w-lg">
+        <ul className="mx-auto flex max-w-lg gap-1 p-2">
           {DESTINATIONS.map((destination) => (
             <li key={destination.to} className="flex-1">
               <NavLink
@@ -26,8 +26,8 @@ export function AppShell() {
                 end={destination.end}
                 className={({ isActive }) =>
                   isActive
-                    ? 'block py-3 text-center text-sm font-medium text-brand'
-                    : 'block py-3 text-center text-sm font-medium text-content-muted'
+                    ? 'block rounded-lg bg-brand py-2 text-center text-sm font-medium text-brand-content'
+                    : 'block rounded-lg py-2 text-center text-sm font-medium text-content-muted'
                 }
               >
                 {destination.label}

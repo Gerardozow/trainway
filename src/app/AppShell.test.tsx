@@ -30,4 +30,13 @@ describe('AppShell', () => {
       'aria-current',
     )
   })
+
+  it('resalta el destino activo con un fondo, no solo con color de texto', () => {
+    renderShell('/rutinas')
+    expect(screen.getByRole('link', { name: 'Rutinas' })).toHaveClass(
+      'bg-brand',
+      'text-brand-content',
+    )
+    expect(screen.getByRole('link', { name: 'Entrenar' })).not.toHaveClass('bg-brand')
+  })
 })

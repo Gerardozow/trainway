@@ -1575,8 +1575,19 @@ describe('AppShell', () => {
       'aria-current',
     )
   })
+
+  it('resalta el destino activo con un fondo, no solo con color de texto', () => {
+    renderShell('/rutinas')
+    expect(screen.getByRole('link', { name: 'Rutinas' })).toHaveClass(
+      'bg-brand',
+      'text-brand-content',
+    )
+    expect(screen.getByRole('link', { name: 'Entrenar' })).not.toHaveClass('bg-brand')
+  })
 })
 ```
+
+Esta última prueba existe porque un color de marca claro (amarillo) puede quedar casi invisible como simple `text-*` sobre un fondo también claro en tema claro; fijar el estado activo a una clase de fondo concreta evita que un futuro restyle lo vuelva a hacer invisible sin que ninguna prueba lo note.
 
 - [ ] **Step 2: Ejecutar la prueba para verla fallar**
 
@@ -1610,7 +1621,7 @@ export function AppShell() {
         aria-label="Navegación principal"
         className="fixed inset-x-0 bottom-0 border-t border-border bg-surface-raised"
       >
-        <ul className="mx-auto flex max-w-lg">
+        <ul className="mx-auto flex max-w-lg gap-1 p-2">
           {DESTINATIONS.map((destination) => (
             <li key={destination.to} className="flex-1">
               <NavLink
@@ -1618,8 +1629,8 @@ export function AppShell() {
                 end={destination.end}
                 className={({ isActive }) =>
                   isActive
-                    ? 'block py-3 text-center text-sm font-medium text-brand'
-                    : 'block py-3 text-center text-sm font-medium text-content-muted'
+                    ? 'block rounded-lg bg-brand py-2 text-center text-sm font-medium text-brand-content'
+                    : 'block rounded-lg py-2 text-center text-sm font-medium text-content-muted'
                 }
               >
                 {destination.label}
@@ -1635,12 +1646,14 @@ export function AppShell() {
 
 `NavLink` pone `aria-current="page"` en el enlace activo por su cuenta. No fijarlo a mano: hacerlo rompe la segunda prueba, que verifica justamente que el atributo aparece solo en el destino activo.
 
+El destino activo se marca con un fondo sólido (`bg-brand text-brand-content`), no con `text-brand` a secas: sobre `bg-surface-raised` en tema claro, texto amarillo mide ~1.4:1 de contraste — prácticamente invisible, y peor que el gris apagado de los destinos inactivos. `bg-brand text-brand-content` mide ~11.2:1 en ambos temas, la misma pareja de tokens que ya usan los botones primarios de la aplicación.
+
 - [ ] **Step 4: Ejecutar la prueba y verificar que pasa**
 
 ```bash
 pnpm test AppShell
 ```
-Esperado: PASA, 2 pruebas.
+Esperado: PASA, 3 pruebas.
 
 - [ ] **Step 5: Definir las rutas**
 
