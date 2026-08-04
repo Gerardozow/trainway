@@ -1,5 +1,16 @@
-import { describe, it, expect } from 'vitest'
-import { validateUsername } from './profile-repository'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const eq = vi.fn()
+const update = vi.fn(() => ({ eq }))
+const from = vi.fn((..._args: unknown[]) => ({ update }))
+
+vi.mock('../../lib/supabase', () => ({
+  supabase: {
+    from: (...args: unknown[]) => from(...args),
+  },
+}))
+
+const { validateUsername, setUsername } = await import('./profile-repository')
 
 describe('validateUsername', () => {
   it('acepta un username válido', () => {
@@ -25,5 +36,41 @@ describe('validateUsername', () => {
 
   it('rechaza el valor vacío', () => {
     expect(validateUsername('')).not.toBeNull()
+  })
+})
+
+describe('setUsername', () => {
+  beforeEach(() => {
+    from.mockClear()
+    update.mockClear()
+    eq.mockReset()
+  })
+
+  it('no llama a Supabase cuando el username es inválido', async () => {
+    const result = await setUsername('user-1', 'ab')
+    expect(result.error).not.toBeNull()
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('guarda el username cuando Supabase no devuelve error', async () => {
+    eq.mockResolvedValue({ error: null })
+    const result = await setUsername('user-1', 'gerardo_99')
+    expect(result.error).toBeNull()
+    expect(from).toHaveBeenCalledWith('profiles')
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'gerardo_99' }),
+    )
+  })
+
+  it('traduce la violación de unicidad (23505) a un mensaje legible', async () => {
+    eq.mockResolvedValue({ error: { code: '23505', message: 'duplicate key' } })
+    const result = await setUsername('user-1', 'gerardo_99')
+    expect(result.error).toBe('Ese username ya está tomado')
+  })
+
+  it('devuelve un mensaje genérico ante cualquier otro error', async () => {
+    eq.mockResolvedValue({ error: { code: '42501', message: 'permission denied' } })
+    const result = await setUsername('user-1', 'gerardo_99')
+    expect(result.error).toBe('No se pudo guardar el username')
   })
 })

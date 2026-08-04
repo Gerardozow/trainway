@@ -14,5 +14,9 @@ export const supabase = createClient(url, anonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // PKCE: el magic link y OAuth devuelven un `?code=` de un solo uso que se
+    // intercambia por POST, en vez de tokens en el fragmento de la URL
+    // (flujo implícito), que quedan expuestos en el historial del navegador.
+    flowType: 'pkce',
   },
 })

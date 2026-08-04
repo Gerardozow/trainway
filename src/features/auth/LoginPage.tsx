@@ -20,6 +20,12 @@ export function LoginPage() {
     setStatus('sent')
   }
 
+  async function onGoogleClick() {
+    setError(null)
+    const result = await signInWithGoogle()
+    if (result.error) setError(result.error)
+  }
+
   return (
     <main className="flex min-h-full flex-col items-center justify-center gap-8 p-8">
       <h1 className="text-4xl font-bold text-content">Trainway</h1>
@@ -53,7 +59,7 @@ export function LoginPage() {
           </button>
           <button
             type="button"
-            onClick={() => signInWithGoogle()}
+            onClick={() => onGoogleClick()}
             className="rounded-lg border border-border px-4 py-3 font-medium text-content"
           >
             Entrar con Google
