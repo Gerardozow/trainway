@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const eq = vi.fn()
+const select = vi.fn()
+const eq = vi.fn(() => ({ select }))
 const update = vi.fn(() => ({ eq }))
 const from = vi.fn((..._args: unknown[]) => ({ update }))
 
@@ -43,7 +44,8 @@ describe('setUsername', () => {
   beforeEach(() => {
     from.mockClear()
     update.mockClear()
-    eq.mockReset()
+    eq.mockClear()
+    select.mockReset()
   })
 
   it('no llama a Supabase cuando el username es inválido', async () => {
@@ -52,25 +54,35 @@ describe('setUsername', () => {
     expect(from).not.toHaveBeenCalled()
   })
 
-  it('guarda el username cuando Supabase no devuelve error', async () => {
-    eq.mockResolvedValue({ error: null })
+  it('guarda el username cuando Supabase actualiza una fila', async () => {
+    select.mockResolvedValue({ data: [{ id: 'user-1' }], error: null })
     const result = await setUsername('user-1', 'gerardo_99')
     expect(result.error).toBeNull()
     expect(from).toHaveBeenCalledWith('profiles')
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ username: 'gerardo_99' }),
     )
+    expect(select).toHaveBeenCalledWith('id')
   })
 
   it('traduce la violación de unicidad (23505) a un mensaje legible', async () => {
-    eq.mockResolvedValue({ error: { code: '23505', message: 'duplicate key' } })
+    select.mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate key' } })
     const result = await setUsername('user-1', 'gerardo_99')
     expect(result.error).toBe('Ese username ya está tomado')
   })
 
   it('devuelve un mensaje genérico ante cualquier otro error', async () => {
-    eq.mockResolvedValue({ error: { code: '42501', message: 'permission denied' } })
+    select.mockResolvedValue({
+      data: null,
+      error: { code: '42501', message: 'permission denied' },
+    })
     const result = await setUsername('user-1', 'gerardo_99')
     expect(result.error).toBe('No se pudo guardar el username')
+  })
+
+  it('reporta error cuando la fila no existe y no se actualiza nada', async () => {
+    select.mockResolvedValue({ data: [], error: null })
+    const result = await setUsername('user-1', 'gerardo_99')
+    expect(result.error).not.toBeNull()
   })
 })

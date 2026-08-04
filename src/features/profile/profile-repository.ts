@@ -34,13 +34,24 @@ export async function setUsername(
   const invalid = validateUsername(username)
   if (invalid) return { error: invalid }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .update({ username, updated_at: new Date().toISOString() })
     .eq('id', userId)
+    .select('id')
 
-  if (!error) return { error: null }
-  // 23505 es violación de unicidad en Postgres.
-  if (error.code === '23505') return { error: 'Ese username ya está tomado' }
-  return { error: 'No se pudo guardar el username' }
+  if (error) {
+    // 23505 es violación de unicidad en Postgres.
+    if (error.code === '23505') return { error: 'Ese username ya está tomado' }
+    return { error: 'No se pudo guardar el username' }
+  }
+
+  // `.update().eq()` sin `.select()` devuelve error: null tanto si RLS filtró
+  // la fila (0 actualizadas) como si actualizó una. Sin este chequeo, un
+  // perfil ausente hace que el onboarding "tenga éxito" sin haber guardado nada.
+  if (!data || data.length === 0) {
+    return { error: 'No se pudo guardar el username' }
+  }
+
+  return { error: null }
 }
