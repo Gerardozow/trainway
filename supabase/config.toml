@@ -392,6 +392,13 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# sign-in recibe identificador + contraseña de quien todavía no tiene sesión
+# — por definición no puede llevar un JWT. Fijarlo aquí evita que el
+# comportamiento local (con --no-verify-jwt en la CLI) diverja del que
+# tendría un despliegue, donde el valor por defecto es `true`.
+[functions.sign-in]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

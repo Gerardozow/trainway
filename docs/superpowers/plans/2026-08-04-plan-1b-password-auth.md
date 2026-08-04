@@ -253,20 +253,43 @@ git commit -m "feat: add locked-down username to email lookup and availability c
 ### Task 2: Edge Function de acceso con identificador dual
 
 **Files:**
-- Create: `supabase/functions/sign-in/index.ts`
+- Create: `supabase/functions/sign-in/index.ts`, `supabase/functions/deno.json`
 - Create: `tests/edge/sign-in.test.ts`
-- Modify: `vite.config.ts` (tercer proyecto de Vitest), `package.json` (script `test:edge`)
+- Modify: `vite.config.ts` (tercer proyecto de Vitest, y excluir `tests/edge` del proyecto `unit`), `package.json` (script `test:edge`), `tsconfig.test.json` (incluir `tests/edge`), `tsconfig.app.json` (excluir `tests/edge`, por la misma razón que ya excluye `tests/rls`), `supabase/config.toml` (`[functions.sign-in]`)
 
 **Interfaces:**
 - Consumes: `public.email_for_username` de la Task 1.
 - Produces: endpoint `POST /functions/v1/sign-in` que recibe `{ identifier: string, password: string }` y devuelve `{ session }` en éxito o `{ error: 'Credenciales inválidas' }` con estado 400 en cualquier fallo de credenciales.
 
+> **Nota de una revisión posterior:** la primera versión de este paso usaba un
+> correo señuelo (`DECOY_EMAIL`) para que la rama "username desconocido"
+> también llamara a `signInWithPassword` y así, en teoría, pagara el mismo
+> costo que la rama "contraseña incorrecta de una cuenta real". Medido en la
+> práctica, no funcionó: GoTrue responde "no existe" en cuanto el correo no
+> está en `auth.users`, sin tocar bcrypt — así que la ruta del señuelo
+> siempre iba a ser más rápida (~14ms medidos) que la de una cuenta real con
+> contraseña mala (~75ms, el costo real de bcrypt). El señuelo igualaba dos
+> cosas que nunca estuvieron en duda y no hacía nada por la única que
+> importaba. La versión de abajo ya incluye la corrección: un piso de tiempo
+> fijo en la función misma, además de límite de tasa por IP real, versión
+> fijada de la dependencia y manejo de errores que no escapa como 500.
+
 - [ ] **Step 1: Escribir la Edge Function**
+
+Crear `supabase/functions/deno.json` — fija la versión exacta de la dependencia; sin esto, `jsr:@supabase/supabase-js@2` resuelve a lo que sea más nuevo en el momento de cada `serve` o `deploy`, y esta función es el único proceso que sostiene la clave de servicio:
+
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2.112.0"
+  }
+}
+```
 
 Crear `supabase/functions/sign-in/index.ts`:
 
 ```typescript
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -277,74 +300,177 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 // en un buscador de cuentas.
 const INVALID = 'Credenciales inválidas'
 
-// Correo que con certeza no existe. Se usa para que el camino "username
-// desconocido" también pague el costo de una verificación de contraseña y no
-// se distinga del camino "username conocido, contraseña mala" por su tiempo
-// de respuesta.
-const DECOY_EMAIL = 'decoy-nonexistent@trainway.invalid'
+// Mensaje aparte, y deliberadamente distinto, para cuando el problema es
+// nuestro y no de quien intenta entrar: así un incidente de infraestructura
+// no se lee como "todos escribieron mal su contraseña", y quien revise los
+// logs (ver console.error más abajo) puede diferenciar ambos casos. Solo se
+// usa cuando la falla es igual sin importar qué identificador se pidió, así
+// que usarlo no delata ninguna cuenta.
+const UNAVAILABLE = 'Servicio no disponible, intenta de nuevo'
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+// Piso fijo de tiempo de respuesta, en milisegundos, para TODA respuesta de
+// fallo. Un correo señuelo no alcanza: GoTrue responde "no existe" sin tocar
+// bcrypt en cuanto el correo no está en auth.users, así que la ruta
+// "username desconocido" siempre iba a ser más rápida que "contraseña
+// incorrecta de una cuenta real" (bcrypt costo 10 + ida y vuelta midió unos
+// 75ms en local) — sin importar qué correo se le pase a signInWithPassword.
+// Un piso fijo, y no jitter aleatorio, es lo que cierra esa diferencia:
+// el jitter se promedia con suficientes muestras, un piso no, porque cada
+// respuesta tarda exactamente lo mismo desde afuera sin importar el trabajo
+// real que hizo por debajo. 250 deja margen amplio sobre los ~75ms medidos.
+const MIN_FAILURE_MS = 250
+
+// Orígenes desde los que se acepta la llamada. Sin esto, cualquier página
+// del navegador de cualquier visitante podría invocar esta función contra
+// las IPs de sus visitantes — un harness distribuido gratuito para el
+// oráculo de tiempo y para probar contraseñas robadas. En producción hay
+// que fijar ALLOWED_ORIGINS (lista separada por comas) a los orígenes reales
+// de la PWA; el valor por defecto solo cubre el servidor de desarrollo.
+const ALLOWED_ORIGINS = (
+  Deno.env.get('ALLOWED_ORIGINS') ?? 'http://localhost:5173,http://127.0.0.1:5173'
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
+function corsHeaders(origin: string | null): Record<string, string> {
+  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  }
 }
 
-function json(body: unknown, status: number): Response {
+function json(body: unknown, status: number, cors: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
+    headers: { ...cors, 'Content-Type': 'application/json' },
   })
+}
+
+// Un error de GoTrue con estado 5xx es una falla del servicio, no de la
+// cuenta: ocurre igual sin importar el identificador que se haya pedido, así
+// que reportarla aparte (503) no delata nada. Cualquier otro código (400
+// contraseña mala, 429 límite de tasa, cuenta no confirmada, cuenta
+// suspendida, etc.) sigue colapsando a INVALID: revelar cuál de esas razones
+// aplica sí delataría que la cuenta existe.
+function isServiceError(error: { status?: number }): boolean {
+  return typeof error.status === 'number' && error.status >= 500
 }
 
 Deno.serve(async (request) => {
+  const startedAt = performance.now()
+  const cors = corsHeaders(request.headers.get('origin'))
+
+  // Todo camino de fallo pasa por aquí — JSON malformado, tipos incorrectos,
+  // identificador vacío, username desconocido, contraseña mala, error de
+  // GoTrue — para que ninguno tome menos que MIN_FAILURE_MS desde afuera.
+  async function failure(body: unknown, status: number): Promise<Response> {
+    const elapsed = performance.now() - startedAt
+    const remaining = MIN_FAILURE_MS - elapsed
+    if (remaining > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remaining))
+    }
+    return json(body, status, cors)
+  }
+
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS })
+    return new Response('ok', { headers: cors })
   }
   if (request.method !== 'POST') {
-    return json({ error: 'Método no permitido' }, 405)
+    return json({ error: 'Método no permitido' }, 405, cors)
   }
 
-  let identifier: unknown
-  let password: unknown
   try {
-    const body = await request.json()
-    identifier = body?.identifier
-    password = body?.password
-  } catch {
-    return json({ error: INVALID }, 400)
-  }
+    let identifier: unknown
+    let password: unknown
+    try {
+      const body = await request.json()
+      identifier = body?.identifier
+      password = body?.password
+    } catch {
+      return failure({ error: INVALID }, 400)
+    }
 
-  if (typeof identifier !== 'string' || typeof password !== 'string') {
-    return json({ error: INVALID }, 400)
-  }
-  if (identifier.length === 0 || password.length === 0) {
-    return json({ error: INVALID }, 400)
-  }
+    if (typeof identifier !== 'string' || typeof password !== 'string') {
+      return failure({ error: INVALID }, 400)
+    }
+    if (identifier.length === 0 || password.length === 0) {
+      return failure({ error: INVALID }, 400)
+    }
 
-  let email = identifier
-  if (!identifier.includes('@')) {
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    let email = identifier
+    if (!identifier.includes('@')) {
+      const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      })
+      const { data, error } = await admin.rpc('email_for_username', {
+        p_username: identifier.toLowerCase(),
+      })
+      if (error) {
+        // Esto no es "el username no existe" — esa respuesta llega con
+        // error nulo y data nula (ver la migración). Un error aquí es la
+        // búsqueda misma fallando, igual sin importar qué username se haya
+        // pedido.
+        console.error('email_for_username failed', error)
+        return failure({ error: UNAVAILABLE }, 503)
+      }
+      if (typeof data !== 'string' || data.length === 0) {
+        return failure({ error: INVALID }, 400)
+      }
+      email = data
+    }
+
+    // Sin esto, todo intento de acceso llega a GoTrue desde la IP de salida
+    // del runtime de la función, y su límite de 30 intentos por IP en 5
+    // minutos (config.toml, auth.rate_limit.sign_in_sign_ups) deja de
+    // separar a quienes llaman: una sola persona agotándolo bloquea a todos
+    // los demás. Reenviar la IP original hace que GoTrue vuelva a limitar
+    // por quien realmente está intentando entrar.
+    const forwardedFor = request.headers.get('x-forwarded-for')
+    const anon = createClient(SUPABASE_URL, ANON_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
+      global: forwardedFor ? { headers: { 'x-forwarded-for': forwardedFor } } : undefined,
     })
-    const { data, error } = await admin.rpc('email_for_username', {
-      p_username: identifier.toLowerCase(),
-    })
-    // Si el username no existe seguimos con un correo señuelo en vez de
-    // responder de inmediato: así el atacante no puede medir la diferencia.
-    email = !error && typeof data === 'string' && data.length > 0 ? data : DECOY_EMAIL
+    const { data, error } = await anon.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      if (isServiceError(error)) {
+        console.error('signInWithPassword failed', error)
+        return failure({ error: UNAVAILABLE }, 503)
+      }
+      return failure({ error: INVALID }, 400)
+    }
+    if (!data.session) {
+      return failure({ error: INVALID }, 400)
+    }
+
+    // Éxito: no hay piso que pagar. Un atacante ya sabe que acertó — la
+    // sesión que recibe se lo dice — así que no hay nada que igualar aquí.
+    return json({ session: data.session }, 200, cors)
+  } catch (err) {
+    // Cualquier excepción no anticipada — por ejemplo, una variable de
+    // entorno ausente que hace fallar createClient — no se distingue de un
+    // fallo de credenciales de cara afuera. No hay forma de saber si
+    // correspondía a un username o a un correo, así que el default seguro
+    // es no distinguir; la causa real queda en los logs, no en la respuesta.
+    console.error('sign-in unexpected error', err)
+    return failure({ error: INVALID }, 400)
   }
-
-  const anon = createClient(SUPABASE_URL, ANON_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-  const { data, error } = await anon.auth.signInWithPassword({ email, password })
-
-  if (error || !data.session) {
-    return json({ error: INVALID }, 400)
-  }
-
-  return json({ session: data.session }, 200)
 })
+```
+
+En `supabase/config.toml`, añadir junto a `[edge_runtime]` (sign-in recibe
+identificador + contraseña de quien todavía no tiene sesión — por definición
+no puede llevar un JWT — y sin este bloque explícito, un despliegue real
+usaría el valor por defecto `true` y divergiría de lo que prueba
+`--no-verify-jwt` en local):
+
+```toml
+[functions.sign-in]
+verify_jwt = false
 ```
 
 - [ ] **Step 2: Levantar la función y comprobarla a mano**
@@ -364,7 +490,7 @@ Esperado: `HTTP/1.1 400` y cuerpo `{"error":"Credenciales inválidas"}`.
 
 - [ ] **Step 3: Añadir el tercer proyecto de Vitest**
 
-En `vite.config.ts`, dentro del arreglo `test.projects`, añadir junto a los proyectos `unit` y `rls` un tercero. Conservar los dos existentes tal como están:
+En `vite.config.ts`, dentro del arreglo `test.projects`, añadir junto a los proyectos `unit` y `rls` un tercero:
 
 ```typescript
 {
@@ -374,6 +500,12 @@ En `vite.config.ts`, dentro del arreglo `test.projects`, añadir junto a los pro
     include: ['tests/edge/**/*.test.ts'],
   },
 },
+```
+
+El proyecto `unit` sí necesita un cambio: su `exclude` ya saca `tests/rls/**` pero no tiene ningún `include` propio, así que sin excluir también `tests/edge/**` recoge las pruebas nuevas y las corre bajo jsdom — donde fallan porque no hay clave de servicio. Eso rompe la garantía de que `pnpm test` pasa sin `.env.local`. Añadir la misma exclusión que ya existe para `tests/rls`:
+
+```typescript
+exclude: [...configDefaults.exclude, 'tests/rls/**', 'tests/edge/**'],
 ```
 
 En `package.json`, dentro de `"scripts"`, añadir:
@@ -386,6 +518,12 @@ Y en `tsconfig.test.json`, extender `include` para que también cubra las prueba
 
 ```json
 "include": ["tests/rls", "tests/edge"]
+```
+
+`tsconfig.app.json` tiene el mismo problema que `vite.config.ts`: incluye `tests` completo y solo excluye `tests/rls`, y su `types` es `["vite/client"]` sin `"node"` — a propósito, es la barrera que impide que `process` compile bajo `src/`. Sin excluir también `tests/edge`, `pnpm build` falla ahí porque `process.env` no resuelve bajo esos tipos. Extender su `exclude` igual que el de `vite.config.ts`:
+
+```json
+"exclude": ["tests/rls", "tests/edge"]
 ```
 
 - [ ] **Step 4: Escribir las pruebas que fallan**
@@ -403,7 +541,10 @@ const ENDPOINT = `${URL}/functions/v1/sign-in`
 
 const PASSWORD = 'contrasena-de-prueba-8'
 
-async function signIn(identifier: string, password: string) {
+async function signIn(
+  identifier: string,
+  password: string,
+): Promise<{ status: number; body: any }> {
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: ANON },
@@ -489,8 +630,57 @@ describe('Edge Function sign-in', () => {
       body: 'no es json',
     })
     expect(response.status).toBe(400)
-    expect((await response.json()).error).toBe('Credenciales inválidas')
+    const body: any = await response.json()
+    expect(body.error).toBe('Credenciales inválidas')
   })
+
+  it('el piso de tiempo de respuesta no distingue username inexistente de contraseña mala', async () => {
+    // Debe coincidir con MIN_FAILURE_MS en supabase/functions/sign-in/index.ts.
+    // Sin el piso, este par medía ~75ms (contraseña mala de una cuenta real,
+    // que sí paga bcrypt) contra ~14ms (username que no existe, que GoTrue
+    // rechaza antes de tocar bcrypt) — una diferencia de 5x, perfectamente
+    // medible por quien está probando usernames al azar.
+    const FLOOR_MS = 250
+    const TRIALS = 6
+
+    async function timed(identifier: string): Promise<number> {
+      const start = performance.now()
+      await signIn(identifier, 'contrasena-mala-99')
+      return performance.now() - start
+    }
+
+    const known: number[] = []
+    const unknown: number[] = []
+    // Intercalado, alternando cuál va primero en cada vuelta, para que una
+    // deriva sistemática (por ejemplo el runtime calentándose) no falsifique
+    // el resultado.
+    for (let i = 0; i < TRIALS; i++) {
+      if (i % 2 === 0) {
+        known.push(await timed(username))
+        unknown.push(await timed(`no_existe_jamas_${i}`))
+      } else {
+        unknown.push(await timed(`no_existe_jamas_${i}`))
+        known.push(await timed(username))
+      }
+    }
+
+    // setTimeout puede disparar unos milisegundos antes de lo pedido; el
+    // margen evita que eso, y no una regresión real, tumbe la prueba.
+    const TOLERANCE_MS = 15
+    for (const elapsed of [...known, ...unknown]) {
+      expect(elapsed).toBeGreaterThanOrEqual(FLOOR_MS - TOLERANCE_MS)
+    }
+
+    const median = (values: number[]) => {
+      const sorted = [...values].sort((a, b) => a - b)
+      return sorted[Math.floor(sorted.length / 2)]
+    }
+    const diff = Math.abs(median(known) - median(unknown))
+    // La diferencia real sin piso fue de ~60ms. 50ms de margen deja detectar
+    // que el piso sigue puesto sin ser frágil ante el ruido normal de una
+    // red local.
+    expect(diff).toBeLessThan(50)
+  }, 20_000)
 })
 ```
 
@@ -501,15 +691,17 @@ Con `pnpm supabase functions serve sign-in --no-verify-jwt` corriendo en otra te
 ```bash
 pnpm test:edge
 ```
-Esperado: PASAN las 8.
+Esperado: PASAN las 9.
 
-- [ ] **Step 6: Comprobar que la prueba de indistinguibilidad no es vacía**
+- [ ] **Step 6: Comprobar que las pruebas de seguridad no son vacías**
 
-Mutar temporalmente la función para que responda distinto ante un username desconocido — sustituir la línea del señuelo por:
+Dos mutaciones separadas, porque hay dos propiedades distintas en juego: que el status/cuerpo no distingan, y que el piso de tiempo siga puesto.
+
+**6a — status y cuerpo.** Mutar temporalmente la rama de username desconocido para que responda distinto:
 
 ```typescript
-if (error || typeof data !== 'string' || data.length === 0) {
-  return json({ error: 'Ese usuario no existe' }, 404)
+if (typeof data !== 'string' || data.length === 0) {
+  return failure({ error: 'Ese usuario no existe' }, 404)
 }
 email = data
 ```
@@ -517,19 +709,46 @@ email = data
 ```bash
 pnpm test:edge
 ```
-Esperado: FALLA `responde exactamente igual ante un username inexistente`. Restaurar la versión con señuelo y volver a ejecutar:
+Esperado: FALLA `responde exactamente igual ante un username inexistente`, únicamente esa. Restaurar y volver a ejecutar:
 
 ```bash
 pnpm test:edge
 ```
-Esperado: PASAN las 8.
+Esperado: PASAN las 9.
+
+**6b — el piso de tiempo.** Mutar temporalmente `failure` para que no espere nada:
+
+```typescript
+const elapsed = performance.now() - startedAt
+const remaining = 0 // MUTATED: piso desactivado
+if (remaining > 0) {
+```
+
+```bash
+pnpm test:edge
+```
+Esperado: FALLA `el piso de tiempo de respuesta no distingue username inexistente de contraseña mala` — el tiempo medido cae a los ~75ms reales de bcrypt, por debajo del piso que la prueba exige. Restaurar y volver a ejecutar:
+
+```bash
+pnpm test:edge
+```
+Esperado: PASAN las 9.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/functions vite.config.ts package.json tsconfig.test.json tests/edge
+git add supabase/functions vite.config.ts package.json tsconfig.test.json tsconfig.app.json supabase/config.toml tests/edge
 git commit -m "feat: add sign-in edge function accepting email or username"
 ```
+
+> **Pendiente conocido:** `supabase/functions/deno.json` fija la versión exacta
+> del import, pero no fue posible generar `supabase/functions/deno.lock` en
+> este entorno — no hay binario `deno` independiente instalado, y el runtime
+> de `pnpm supabase functions serve` (que empaqueta `deno_core`, no la CLI
+> general de Deno) no escribe uno de vuelta al host aunque se le pase
+> `--import-map` explícitamente. Confirmarlo con una instalación de `deno`
+> disponible y commitear el lockfile en cuanto se pueda, en vez de fabricar
+> uno a mano.
 
 ---
 

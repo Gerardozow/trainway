@@ -100,4 +100,52 @@ describe('Edge Function sign-in', () => {
     const body: any = await response.json()
     expect(body.error).toBe('Credenciales inválidas')
   })
+
+  it('el piso de tiempo de respuesta no distingue username inexistente de contraseña mala', async () => {
+    // Debe coincidir con MIN_FAILURE_MS en supabase/functions/sign-in/index.ts.
+    // Sin el piso, este par medía ~75ms (contraseña mala de una cuenta real,
+    // que sí paga bcrypt) contra ~14ms (username que no existe, que GoTrue
+    // rechaza antes de tocar bcrypt) — una diferencia de 5x, perfectamente
+    // medible por quien está probando usernames al azar.
+    const FLOOR_MS = 250
+    const TRIALS = 6
+
+    async function timed(identifier: string): Promise<number> {
+      const start = performance.now()
+      await signIn(identifier, 'contrasena-mala-99')
+      return performance.now() - start
+    }
+
+    const known: number[] = []
+    const unknown: number[] = []
+    // Intercalado, alternando cuál va primero en cada vuelta, para que una
+    // deriva sistemática (por ejemplo el runtime calentándose) no falsifique
+    // el resultado.
+    for (let i = 0; i < TRIALS; i++) {
+      if (i % 2 === 0) {
+        known.push(await timed(username))
+        unknown.push(await timed(`no_existe_jamas_${i}`))
+      } else {
+        unknown.push(await timed(`no_existe_jamas_${i}`))
+        known.push(await timed(username))
+      }
+    }
+
+    // setTimeout puede disparar unos milisegundos antes de lo pedido; el
+    // margen evita que eso, y no una regresión real, tumbe la prueba.
+    const TOLERANCE_MS = 15
+    for (const elapsed of [...known, ...unknown]) {
+      expect(elapsed).toBeGreaterThanOrEqual(FLOOR_MS - TOLERANCE_MS)
+    }
+
+    const median = (values: number[]) => {
+      const sorted = [...values].sort((a, b) => a - b)
+      return sorted[Math.floor(sorted.length / 2)]
+    }
+    const diff = Math.abs(median(known) - median(unknown))
+    // La diferencia real sin piso fue de ~60ms. 50ms de margen deja detectar
+    // que el piso sigue puesto sin ser frágil ante el ruido normal de una
+    // red local.
+    expect(diff).toBeLessThan(50)
+  }, 20_000)
 })
