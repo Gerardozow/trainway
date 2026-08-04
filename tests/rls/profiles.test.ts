@@ -61,7 +61,12 @@ describe('RLS de profiles', () => {
       .update({ username: 'MAYÚSCULAS Y ESPACIOS' })
       .eq('id', alice.id)
 
+    // 23514 es violación de CHECK constraint en Postgres. Afirmar solo
+    // `error !== null` también pasaría con 42501 (permiso denegado), que es
+    // lo que devuelve una política RLS rota: el código específico es lo que
+    // distingue "el formato es inválido" de "una regresión de RLS".
     expect(error).not.toBeNull()
+    expect(error?.code).toBe('23514')
   })
 
   it('rechaza un username duplicado', async () => {
@@ -73,7 +78,9 @@ describe('RLS de profiles', () => {
       .update({ username: shared })
       .eq('id', bob.id)
 
+    // 23505 es violación de unicidad en Postgres; ver nota arriba sobre 42501.
     expect(error).not.toBeNull()
+    expect(error?.code).toBe('23505')
   })
 
   it('deja leer los perfiles a un visitante sin sesión', async () => {

@@ -12,7 +12,7 @@ Registra tus entrenos de gimnasio y comparte rutinas con tus amigos. PWA instala
 
 ```bash
 pnpm install
-pnpm supabase start
+pnpm db:start
 pnpm supabase status   # copia las claves al paso siguiente
 cp .env.example .env.local
 # llenar VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY
@@ -29,15 +29,21 @@ pruebas en <http://127.0.0.1:54324>.
 |---|---|
 | `pnpm dev` | Servidor de desarrollo |
 | `pnpm build` | Compilación de producción |
-| `pnpm test` | Toda la suite |
-| `pnpm test:rls` | Solo las pruebas de aislamiento de la base |
+| `pnpm lint` | Revisa el código con oxlint |
+| `pnpm test` | Pruebas unitarias (proyecto `unit`, jsdom); no necesita Docker |
+| `pnpm test:watch` | Pruebas unitarias en modo watch |
+| `pnpm test:rls` | Pruebas de aislamiento de la base (proyecto `rls`); requiere `pnpm db:start` primero |
+| `pnpm db:start` | Levanta Supabase local (Docker) |
+| `pnpm db:stop` | Detiene Supabase local |
 | `pnpm db:reset` | Recrea la base local y aplica las migraciones |
 
 ## Acceso con Google
 
-Funciona en producción una vez configurado el proveedor Google en el panel de
-Supabase (Authentication → Providers → Google) con las credenciales de OAuth de
-Google Cloud. En local el botón existe pero no completa el flujo.
+Diferido. `signInWithGoogle` vive en `auth-repository.ts` y sus pruebas, pero
+`LoginPage` no lo usa: `supabase/config.toml` no tiene `[auth.external.google]`
+configurado, así que el botón llevaría directo a un error de "Unsupported
+provider". Se reintroduce en la interfaz cuando existan credenciales de OAuth
+de Google Cloud.
 
 ## Seguridad
 
