@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { signInWithEmail, signInWithGoogle } from './auth-repository'
+import { signInWithEmail } from './auth-repository'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -18,12 +18,6 @@ export function LoginPage() {
       return
     }
     setStatus('sent')
-  }
-
-  async function onGoogleClick() {
-    setError(null)
-    const result = await signInWithGoogle()
-    if (result.error) setError(result.error)
   }
 
   return (
@@ -49,7 +43,11 @@ export function LoginPage() {
             placeholder="tu@correo.com"
             autoComplete="email"
           />
-          {error && <p className="text-sm text-content-muted">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={status === 'sending'}
@@ -57,13 +55,10 @@ export function LoginPage() {
           >
             {status === 'sending' ? 'Enviando…' : 'Enviar enlace de acceso'}
           </button>
-          <button
-            type="button"
-            onClick={() => onGoogleClick()}
-            className="rounded-lg border border-border px-4 py-3 font-medium text-content"
-          >
-            Entrar con Google
-          </button>
+          {/* Acceso con Google está diferido: supabase/config.toml no tiene
+              [auth.external.google] configurado todavía, así que el botón
+              solo llevaría a un error de "Unsupported provider". Se
+              reintroduce cuando existan credenciales de OAuth de Google. */}
         </form>
       )}
     </main>

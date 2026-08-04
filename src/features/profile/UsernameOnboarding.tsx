@@ -14,14 +14,15 @@ export function UsernameOnboarding({
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
-    const invalid = validateUsername(value)
+    const normalized = value.trim().toLowerCase()
+    const invalid = validateUsername(normalized)
     if (invalid) {
       setError(invalid)
       return
     }
 
     setSaving(true)
-    const result = await setUsername(userId, value)
+    const result = await setUsername(userId, normalized)
     setSaving(false)
 
     if (result.error) {
@@ -49,7 +50,11 @@ export function UsernameOnboarding({
           autoComplete="off"
           aria-label="Username"
         />
-        {error && <p className="text-sm text-content-muted">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
         <button
           type="submit"
           disabled={saving}

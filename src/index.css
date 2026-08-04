@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "../index.html";
+@source "./**/*.{ts,tsx}";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -10,6 +12,10 @@
   --color-content-muted: #52525b;
   --color-brand: #ffc603;
   --color-brand-content: #18181b;
+  /* #b91c1c sobre --color-surface (#ffffff) = 6.47:1 */
+  --color-danger: #b91c1c;
+  /* #ffffff sobre --color-danger (#b91c1c) = 6.47:1 */
+  --color-danger-content: #ffffff;
 }
 
 .dark {
@@ -20,6 +26,10 @@
   --color-content-muted: #a1a1aa;
   --color-brand: #ffc603;
   --color-brand-content: #18181b;
+  /* #f87171 sobre --color-surface (#09090b) = 7.19:1 */
+  --color-danger: #f87171;
+  /* #18181b sobre --color-danger (#f87171) = 6.40:1 */
+  --color-danger-content: #18181b;
 }
 
 html, body, #root {
