@@ -271,8 +271,17 @@ git commit -m "feat: add locked-down username to email lookup and availability c
 > contraseña mala (~75ms, el costo real de bcrypt). El señuelo igualaba dos
 > cosas que nunca estuvieron en duda y no hacía nada por la única que
 > importaba. La versión de abajo ya incluye la corrección: un piso de tiempo
-> fijo en la función misma, además de límite de tasa por IP real, versión
-> fijada de la dependencia y manejo de errores que no escapa como 500.
+> fijo en la función misma, versión fijada de la dependencia (con
+> `deno.lock`) y manejo de errores que no escapa como 500.
+>
+> Una segunda ronda de revisión encontró y descartó otro intento de arreglo:
+> una primera corrección de esta nota reenviaba `x-forwarded-for` a GoTrue
+> para que su límite de intentos por IP volviera a separar quién llama. Se
+> revirtió — ese encabezado lo pone quien hace la petición, no una capa de
+> confianza, y reenviarlo tal cual le da a un atacante que rote el valor un
+> presupuesto por IP ilimitado, peor que el problema que buscaba resolver.
+> El límite de intentos por IP sigue roto (ver "Al terminar este plan"); la
+> versión de abajo ya no pretende arreglarlo desde la función.
 
 - [ ] **Step 1: Escribir la Edge Function**
 
@@ -326,8 +335,17 @@ const MIN_FAILURE_MS = 250
 // oráculo de tiempo y para probar contraseñas robadas. En producción hay
 // que fijar ALLOWED_ORIGINS (lista separada por comas) a los orígenes reales
 // de la PWA; el valor por defecto solo cubre el servidor de desarrollo.
+//
+// `??` no basta: una variable definida pero vacía ('') no es undefined, así
+// que `?? default` no cae al valor por defecto — el split de una cadena
+// vacía da una lista vacía, y el encabezado terminaría siendo el string
+// literal "undefined". Falla cerrado (nadie pasa la comparación), pero es
+// una salida de CORS silenciosa y difícil de diagnosticar. Por eso se
+// comprueba longitud en vez de solo nulidad.
+const DEFAULT_ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173'
+const rawAllowedOrigins = Deno.env.get('ALLOWED_ORIGINS')
 const ALLOWED_ORIGINS = (
-  Deno.env.get('ALLOWED_ORIGINS') ?? 'http://localhost:5173,http://127.0.0.1:5173'
+  rawAllowedOrigins && rawAllowedOrigins.length > 0 ? rawAllowedOrigins : DEFAULT_ALLOWED_ORIGINS
 )
   .split(',')
   .map((origin) => origin.trim())
@@ -423,16 +441,21 @@ Deno.serve(async (request) => {
       email = data
     }
 
-    // Sin esto, todo intento de acceso llega a GoTrue desde la IP de salida
-    // del runtime de la función, y su límite de 30 intentos por IP en 5
-    // minutos (config.toml, auth.rate_limit.sign_in_sign_ups) deja de
-    // separar a quienes llaman: una sola persona agotándolo bloquea a todos
-    // los demás. Reenviar la IP original hace que GoTrue vuelva a limitar
-    // por quien realmente está intentando entrar.
-    const forwardedFor = request.headers.get('x-forwarded-for')
+    // Todo intento de acceso llega a GoTrue desde la IP de salida del
+    // runtime de la función, así que su límite de 30 intentos por IP en 5
+    // minutos (config.toml, auth.rate_limit.sign_in_sign_ups) no separa a
+    // quienes llaman: una sola persona agotándolo bloquea a todos los demás.
+    // Se consideró reenviar x-forwarded-for y se descartó: ese encabezado lo
+    // pone quien llama, no una capa de confianza -- en un despliegue real la
+    // plataforma añade la IP verdadera a la cadena en vez de reemplazarla, y
+    // reenviar la cadena completa tal cual deja que quien ataca rote el
+    // valor y consiga un presupuesto por IP ilimitado, peor que la bolsa
+    // compartida que se buscaba arreglar. El cierre real de este hueco no es
+    // código en esta función: es un captcha (auth.captcha, ya preparado en
+    // config.toml) o un throttle contra algo que quien llama no pueda
+    // falsificar.
     const anon = createClient(SUPABASE_URL, ANON_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
-      global: forwardedFor ? { headers: { 'x-forwarded-for': forwardedFor } } : undefined,
     })
     const { data, error } = await anon.auth.signInWithPassword({ email, password })
 
@@ -734,21 +757,24 @@ pnpm test:edge
 ```
 Esperado: PASAN las 9.
 
+- [ ] **Step 6c (una sola vez, no en cada implementación): generar `deno.lock`**
+
+`supabase/functions/deno.json` fija la versión exacta del import, pero eso no basta: un `deno.lock` fija además los hashes de integridad de cada dependencia transitiva. `pnpm supabase functions serve` empaqueta `deno_core` dentro de un runtime en Rust, no la CLI general de Deno, y no escribe un lockfile de vuelta al host aunque se le pase `--import-map` explícitamente — hace falta la CLI real:
+
+```bash
+pnpm add -D deno
+pnpm approve-builds deno   # aprueba el postinstall que descarga el binario
+pnpm exec deno cache --lock=supabase/functions/deno.lock supabase/functions/sign-in/index.ts
+```
+
+Esto añade `deno` a `devDependencies`, y `pnpm approve-builds` escribe `allowBuilds: { deno: true }` en `pnpm-workspace.yaml` — sin ese archivo, una instalación limpia en otra máquina vuelve a ignorar el postinstall y el binario nunca se descarga. Los tres archivos (`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`) se commitean junto con el lockfile de Deno. No fabricar un `deno.lock` a mano si esto no está disponible: un lockfile con hashes inventados es peor que ninguno — o se ignora en silencio, o falsamente aparenta una protección que no existe. Si no hay manera de instalar `deno` en el entorno que ejecuta esta tarea, dejarlo pendiente y decirlo explícitamente, no forzarlo.
+
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/functions vite.config.ts package.json tsconfig.test.json tsconfig.app.json supabase/config.toml tests/edge
+git add supabase/functions vite.config.ts package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.test.json tsconfig.app.json supabase/config.toml tests/edge
 git commit -m "feat: add sign-in edge function accepting email or username"
 ```
-
-> **Pendiente conocido:** `supabase/functions/deno.json` fija la versión exacta
-> del import, pero no fue posible generar `supabase/functions/deno.lock` en
-> este entorno — no hay binario `deno` independiente instalado, y el runtime
-> de `pnpm supabase functions serve` (que empaqueta `deno_core`, no la CLI
-> general de Deno) no escribe uno de vuelta al host aunque se le pase
-> `--import-map` explícitamente. Confirmarlo con una instalación de `deno`
-> disponible y commitear el lockfile en cuanto se pueda, en vez de fabricar
-> uno a mano.
 
 ---
 
@@ -1463,3 +1489,5 @@ git commit -m "feat: add password signup and dual-identifier login"
 El usuario se registra con correo, contraseña y username, y entra escribiendo cualquiera de los dos identificadores. Un atacante que pruebe usernames al azar no puede distinguir "no existe" de "contraseña incorrecta", ni por el mensaje ni por el tiempo de respuesta, y ningún correo ajeno llega jamás al navegador. El magic link sigue disponible como segunda opción.
 
 Pendiente explícito fuera de alcance: recuperación de contraseña, y el proveedor de Google, que requiere credenciales de Google Cloud en el panel de Supabase.
+
+También pendiente: **límite de intentos de acceso por quien llama, no por IP de la función**. `sign-in` hoy llama a GoTrue desde la IP de salida del runtime de la función, así que el límite de `auth.rate_limit.sign_in_sign_ups` (30 cada 5 minutos) no distingue entre quienes llaman — una sola persona agotándolo bloquea a todos los demás. Se evaluó reenviar `x-forwarded-for` y se descartó a propósito: ese encabezado lo pone quien hace la petición, no una capa de confianza; en un despliegue real la plataforma añade la IP verdadera a la cadena en vez de reemplazarla, y reenviar la cadena tal cual dejaría que quien ataca rote el valor y consiga un presupuesto por IP ilimitado — peor que la bolsa compartida que se buscaba arreglar. El cierre real no es código en la función: es un captcha (`[auth.captcha]`, ya preparado con `hcaptcha`/`turnstile` como opciones en `supabase/config.toml`, solo falta una cuenta real y pasar el token desde el cliente) o un throttle contra algo que quien llama no pueda falsificar.

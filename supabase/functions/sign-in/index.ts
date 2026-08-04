@@ -35,8 +35,17 @@ const MIN_FAILURE_MS = 250
 // oráculo de tiempo y para probar contraseñas robadas. En producción hay
 // que fijar ALLOWED_ORIGINS (lista separada por comas) a los orígenes reales
 // de la PWA; el valor por defecto solo cubre el servidor de desarrollo.
+//
+// `??` no basta: una variable definida pero vacía ('') no es undefined, así
+// que `?? default` no cae al valor por defecto — el split de una cadena
+// vacía da una lista vacía, y el encabezado terminaría siendo el string
+// literal "undefined". Falla cerrado (nadie pasa la comparación), pero es
+// una salida de CORS silenciosa y difícil de diagnosticar. Por eso se
+// comprueba longitud en vez de solo nulidad.
+const DEFAULT_ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173'
+const rawAllowedOrigins = Deno.env.get('ALLOWED_ORIGINS')
 const ALLOWED_ORIGINS = (
-  Deno.env.get('ALLOWED_ORIGINS') ?? 'http://localhost:5173,http://127.0.0.1:5173'
+  rawAllowedOrigins && rawAllowedOrigins.length > 0 ? rawAllowedOrigins : DEFAULT_ALLOWED_ORIGINS
 )
   .split(',')
   .map((origin) => origin.trim())
@@ -132,16 +141,21 @@ Deno.serve(async (request) => {
       email = data
     }
 
-    // Sin esto, todo intento de acceso llega a GoTrue desde la IP de salida
-    // del runtime de la función, y su límite de 30 intentos por IP en 5
-    // minutos (config.toml, auth.rate_limit.sign_in_sign_ups) deja de
-    // separar a quienes llaman: una sola persona agotándolo bloquea a todos
-    // los demás. Reenviar la IP original hace que GoTrue vuelva a limitar
-    // por quien realmente está intentando entrar.
-    const forwardedFor = request.headers.get('x-forwarded-for')
+    // Todo intento de acceso llega a GoTrue desde la IP de salida del
+    // runtime de la función, así que su límite de 30 intentos por IP en 5
+    // minutos (config.toml, auth.rate_limit.sign_in_sign_ups) no separa a
+    // quienes llaman: una sola persona agotándolo bloquea a todos los demás.
+    // Se consideró reenviar x-forwarded-for y se descartó: ese encabezado lo
+    // pone quien llama, no una capa de confianza -- en un despliegue real la
+    // plataforma añade la IP verdadera a la cadena en vez de reemplazarla, y
+    // reenviar la cadena completa tal cual deja que quien ataca rote el
+    // valor y consiga un presupuesto por IP ilimitado, peor que la bolsa
+    // compartida que se buscaba arreglar. El cierre real de este hueco no es
+    // código en esta función: es un captcha (auth.captcha, ya preparado en
+    // config.toml) o un throttle contra algo que quien llama no pueda
+    // falsificar.
     const anon = createClient(SUPABASE_URL, ANON_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
-      global: forwardedFor ? { headers: { 'x-forwarded-for': forwardedFor } } : undefined,
     })
     const { data, error } = await anon.auth.signInWithPassword({ email, password })
 
