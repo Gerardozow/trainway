@@ -1,32 +1,46 @@
-# React + TypeScript + Vite
+# Trainway
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Registra tus entrenos de gimnasio y comparte rutinas con tus amigos. PWA instalable.
 
-Currently, two official plugins are available:
+## Requisitos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node 24+
+- pnpm 11+
+- Docker en marcha (para Supabase local)
 
-## React Compiler
+## Puesta en marcha
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+pnpm install
+pnpm supabase start
+pnpm supabase status   # copia las claves al paso siguiente
+cp .env.example .env.local
+# llenar VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY
+pnpm db:reset
+pnpm dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Los correos de acceso no salen a internet en local: se leen en el buzón de
+pruebas en <http://127.0.0.1:54324>.
+
+## Comandos
+
+| Comando | Qué hace |
+|---|---|
+| `pnpm dev` | Servidor de desarrollo |
+| `pnpm build` | Compilación de producción |
+| `pnpm test` | Toda la suite |
+| `pnpm test:rls` | Solo las pruebas de aislamiento de la base |
+| `pnpm db:reset` | Recrea la base local y aplica las migraciones |
+
+## Acceso con Google
+
+Funciona en producción una vez configurado el proveedor Google en el panel de
+Supabase (Authentication → Providers → Google) con las credenciales de OAuth de
+Google Cloud. En local el botón existe pero no completa el flujo.
+
+## Seguridad
+
+`SUPABASE_SERVICE_ROLE_KEY` no lleva prefijo `VITE_`, así que Vite nunca la
+incluye en el paquete del navegador. Se usa solo en las pruebas de RLS. Si
+alguna vez aparece con prefijo `VITE_`, es un defecto grave: rotar la clave.

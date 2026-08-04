@@ -8,8 +8,8 @@
   --color-border: #e4e4e7;
   --color-content: #18181b;
   --color-content-muted: #52525b;
-  --color-brand: #1d4ed8;
-  --color-brand-content: #ffffff;
+  --color-brand: #ffc603;
+  --color-brand-content: #18181b;
 }
 
 .dark {
@@ -18,8 +18,8 @@
   --color-border: #27272a;
   --color-content: #fafafa;
   --color-content-muted: #a1a1aa;
-  --color-brand: #3b82f6;
-  --color-brand-content: #0b1120;
+  --color-brand: #ffc603;
+  --color-brand-content: #18181b;
 }
 
 html, body, #root {
