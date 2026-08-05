@@ -1,9 +1,33 @@
+# Dependencias y compilación
 node_modules/
 dist/
+*.tsbuildinfo
+
+# Secretos. Nada de esto va al repositorio.
 .env
-.env.local
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+*.pem
+
+# Cloudflare
 .wrangler/
-*.log
+
+# Pruebas
 test-results/
 playwright-report/
+blob-report/
+coverage/
+.playwright/
+
+# Editores y sistema
+.vscode/
+.idea/
+*.swp
 .DS_Store
+Thumbs.db
+
+# Registros
+*.log
+npm-debug.log*
