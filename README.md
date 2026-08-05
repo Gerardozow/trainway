@@ -42,6 +42,7 @@ npm run dev
 | `npm run typecheck` | TypeScript en modo estricto |
 | `npm run build` | Compila a `dist/` |
 | `npm run deploy` | Compila y publica el Worker |
+| `npm run check:keys` | Verifica que las claves de `.env` sean las correctas |
 
 ## Base de datos
 
