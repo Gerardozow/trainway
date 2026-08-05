@@ -33,10 +33,23 @@ describe('AppShell', () => {
 
   it('resalta el destino activo con un fondo, no solo con color de texto', () => {
     renderShell('/rutinas')
-    expect(screen.getByRole('link', { name: 'Rutinas' })).toHaveClass(
-      'bg-brand',
-      'text-brand-content',
-    )
-    expect(screen.getByRole('link', { name: 'Entrenar' })).not.toHaveClass('bg-brand')
+
+    // La pastilla vive en un elemento interior, no en el enlace: lo que
+    // importa es que el activo tenga una forma que lo distinga y el inactivo
+    // no, para no depender solo de poder ver el color.
+    const activo = screen.getByRole('link', { name: 'Rutinas' })
+    const inactivo = screen.getByRole('link', { name: 'Entrenar' })
+
+    expect(activo.querySelector('.bg-brand')).not.toBeNull()
+    expect(inactivo.querySelector('.bg-brand')).toBeNull()
+  })
+
+  it('cada destino lleva un icono además del texto', () => {
+    renderShell('/')
+
+    for (const label of ['Entrenar', 'Rutinas', 'Progreso', 'Perfil']) {
+      const enlace = screen.getByRole('link', { name: label })
+      expect(enlace.querySelector('svg')).not.toBeNull()
+    }
   })
 })

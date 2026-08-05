@@ -1,18 +1,18 @@
 import { useState, type FormEvent } from 'react'
 import { formatWeight } from '../../shared/formatWeight'
+import { Button, ErrorText, Eyebrow, Field } from '../../shared/ui'
 import type { WorkoutSet } from './workout-types'
-
-// Campos grandes: esto se usa de pie, con una mano, sudando.
-const FIELD =
-  'w-full rounded-lg border border-border bg-surface-raised px-4 py-4 text-2xl text-content'
 
 export function SetLogger({
   exerciseName,
   lastSets,
+  target,
   onLog,
 }: {
   exerciseName: string
   lastSets: WorkoutSet[] | null
+  /** Lo que la rutina manda hacer hoy, si el entreno viene de una. */
+  target?: { sets: number | null; reps: number | null } | null
   onLog: (input: { weight: number; reps: number }) => Promise<void>
 }) {
   const [weight, setWeight] = useState('')
@@ -49,60 +49,76 @@ export function SetLogger({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold text-content">{exerciseName}</h2>
+    <form
+      onSubmit={onSubmit}
+      className="flex flex-col gap-4 rounded-2xl border border-border bg-surface-raised p-4"
+    >
+      <div>
+        <Eyebrow tone="strength">En curso</Eyebrow>
+        <h2 className="mt-1 text-xl font-bold text-content">{exerciseName}</h2>
+      </div>
 
-      <p className="text-sm text-content-muted">
-        {lastSets && lastSets.length > 0
-          ? `La última vez: ${lastSets
-              .map((set) => `${formatWeight(set.weight)} × ${set.reps}`)
-              .join(', ')}`
-          : 'Primera vez con este ejercicio'}
-      </p>
+      {/* La referencia de la última vez es lo que hace útil a la app: sin ella
+          esto es una libreta. Va primero y con peso visual. */}
+      <div className="rounded-xl bg-surface-sunken px-4 py-3">
+        {lastSets && lastSets.length > 0 ? (
+          <>
+            <Eyebrow>La última vez</Eyebrow>
+            <p className="mt-1 font-display text-lg font-bold text-content">
+              {lastSets
+                .map((set) => `${formatWeight(set.weight)} × ${set.reps}`)
+                .join('  ·  ')}
+            </p>
+          </>
+        ) : (
+          <>
+            <Eyebrow>Primera vez</Eyebrow>
+            <p className="mt-1 text-sm text-content-muted">
+              Empieza ligero. La próxima vez verás aquí lo de hoy.
+            </p>
+          </>
+        )}
+
+        {target && (target.sets || target.reps) && (
+          <p className="mt-2 text-sm text-content-muted">
+            Hoy toca{' '}
+            <b className="text-strength">
+              {target.sets ?? '?'} × {target.reps ?? '?'}
+            </b>
+          </p>
+        )}
+      </div>
 
       <div className="flex gap-3">
         <div className="flex-1">
-          <label htmlFor="set-weight" className="text-sm text-content-muted">
-            Peso (kg)
-          </label>
-          <input
+          <Field
             id="set-weight"
+            label="Peso (kg)"
+            big
             inputMode="decimal"
             value={weight}
             onChange={(event) => setWeight(event.target.value)}
-            className={FIELD}
             autoComplete="off"
           />
         </div>
-
         <div className="flex-1">
-          <label htmlFor="set-reps" className="text-sm text-content-muted">
-            Repeticiones
-          </label>
-          <input
+          <Field
             id="set-reps"
+            label="Repeticiones"
+            big
             inputMode="numeric"
             value={reps}
             onChange={(event) => setReps(event.target.value)}
-            className={FIELD}
             autoComplete="off"
           />
         </div>
       </div>
 
-      {error && (
-        <p role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      )}
+      {error && <ErrorText>{error}</ErrorText>}
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="rounded-lg bg-brand px-4 py-4 text-lg font-medium text-brand-content disabled:opacity-60"
-      >
+      <Button type="submit" variant="primary" size="lg" disabled={saving}>
         {saving ? 'Registrando…' : 'Registrar serie'}
-      </button>
+      </Button>
     </form>
   )
 }

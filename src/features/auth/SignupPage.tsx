@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { signUpWithPassword } from './auth-repository'
+import { AuthLayout } from './AuthLayout'
+import { Button, ErrorText, Field } from '../../shared/ui'
 import { isUsernameAvailable, validateUsername } from '../profile/profile-repository'
 
 export function SignupPage() {
@@ -62,79 +64,71 @@ export function SignupPage() {
 
   if (done) {
     return (
-      <main className="flex min-h-full flex-col items-center justify-center gap-4 p-8">
-        <h1 className="text-3xl font-bold text-content">Cuenta creada</h1>
-        <p className="max-w-sm text-center text-content-muted">
-          Revisa tu correo para confirmar la cuenta y ya puedes entrar.
-        </p>
-        {/* Pantalla terminal en una PWA instalada: sin barra de direcciones
-            y sin nav (las rutas públicas quedan fuera de AppShell), sin este
-            enlace no hay forma de llegar a /login salvo forzar el cierre. */}
+      <AuthLayout
+        eyebrow="Casi listo"
+        title="Cuenta creada"
+        lead="Revisa tu correo para confirmarla y ya puedes entrar."
+      >
         <Link
           to="/login"
-          className="rounded-lg bg-brand px-4 py-3 font-medium text-brand-content"
+          className="block rounded-xl bg-brand px-5 py-4 text-center text-lg font-semibold text-brand-content"
         >
-          Ir a iniciar sesión
+          Ir a entrar
         </Link>
-      </main>
+      </AuthLayout>
     )
   }
 
   return (
-    <main className="flex min-h-full flex-col items-center justify-center gap-8 p-8">
-      <h1 className="text-4xl font-bold text-content">Trainway</h1>
-
-      <form onSubmit={onSubmit} className="flex w-full max-w-sm flex-col gap-3">
-        <label htmlFor="signup-email" className="text-sm text-content-muted">
-          Correo
-        </label>
-        <input
+    <AuthLayout
+      eyebrow="Trainway"
+      title={
+        <>
+          Empieza<br />sin <span className="text-cardio">complicarte</span>.
+        </>
+      }
+      lead="Tu usuario es como te encuentran tus amigos para compartirte rutinas."
+      footer={
+        <Link to="/login" className="text-content-muted underline">
+          Ya tengo cuenta
+        </Link>
+      }
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <Field
           id="signup-email"
+          label="Correo"
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-content"
           autoComplete="email"
         />
 
-        <label htmlFor="signup-password" className="text-sm text-content-muted">
-          Contraseña
-        </label>
-        <input
+        <Field
           id="signup-password"
+          label="Contraseña"
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-content"
           autoComplete="new-password"
+          placeholder="Mínimo 8 caracteres"
         />
 
-        <label htmlFor="signup-username" className="text-sm text-content-muted">
-          Usuario
-        </label>
-        <input
+        <Field
           id="signup-username"
+          label="Usuario"
           value={username}
           onChange={(event) => setUsername(event.target.value.toLowerCase())}
-          className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-content"
           placeholder="gerardo_99"
           autoComplete="off"
         />
 
-        {error && (
-          <p role="alert" className="text-sm text-danger">
-            {error}
-          </p>
-        )}
+        {error && <ErrorText>{error}</ErrorText>}
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-brand px-4 py-3 font-medium text-brand-content disabled:opacity-60"
-        >
+        <Button type="submit" variant="primary" size="lg" disabled={saving}>
           {saving ? 'Creando…' : 'Crear cuenta'}
-        </button>
+        </Button>
       </form>
-    </main>
+    </AuthLayout>
   )
 }

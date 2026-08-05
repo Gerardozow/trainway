@@ -301,8 +301,13 @@ describe('WorkoutPage', () => {
     renderPage()
 
     expect(await screen.findByRole('heading', { name: 'Pierna' })).toBeInTheDocument()
-    // Con el nombre legible del catálogo, no el identificador.
-    expect(await screen.findByText('4 × 8')).toBeInTheDocument()
+    // El acceso rápido muestra el avance frente al objetivo, que a media
+    // sesión importa más que el objetivo solo. El nombre aparece también en el
+    // buscador de abajo, así que se ancla por el avance, que es único.
+    expect(await screen.findByText('0/4')).toBeInTheDocument()
+    // Y con el nombre legible del catálogo, no el identificador.
+    expect(screen.getAllByText('Sentadilla con barra').length).toBeGreaterThan(0)
+    expect(screen.queryByText('squat')).not.toBeInTheDocument()
   })
 
   it('sigue funcionando como entreno libre si la rutina ya no existe', async () => {

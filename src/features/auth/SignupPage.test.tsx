@@ -116,7 +116,7 @@ describe('SignupPage', () => {
     await user.type(screen.getByLabelText(/usuario/i), 'gerardo_99')
     await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
 
-    const link = await screen.findByRole('link', { name: /iniciar sesión/i })
+    const link = await screen.findByRole('link', { name: /ir a entrar/i })
     expect(link).toHaveAttribute('href', '/login')
   })
 

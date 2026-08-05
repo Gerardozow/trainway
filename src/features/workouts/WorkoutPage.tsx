@@ -18,6 +18,7 @@ import { useOnlineStatus } from './useOnlineStatus'
 import { SetLogger } from './SetLogger'
 import { SyncBanner } from './SyncBanner'
 import { ExercisePicker } from './ExercisePicker'
+import { Button, Empty, ErrorText, Eyebrow, ProgressBar, Stat } from '../../shared/ui'
 import type { Workout, WorkoutSet } from './workout-types'
 import { fetchRoutine } from '../routines/routine-repository'
 import { loadExercises } from '../exercises/exercise-cache'
@@ -181,64 +182,107 @@ export function WorkoutPage() {
   // pantalla aparezca y desaparezca se siente como si la app parpadeara.
   if (!ready || loadError || !workout) {
     return (
-      <section className="flex flex-col gap-4 p-6">
-        <h1 className="text-2xl font-bold text-content">Entrenar</h1>
+      <section className="mx-auto flex w-full max-w-2xl flex-col gap-5 p-4 pb-24">
+        <header>
+          <Eyebrow tone="cardio">Hoy</Eyebrow>
+          <h1 className="mt-1 text-4xl font-extrabold text-content">Entrenar</h1>
+        </header>
 
         {loadError ? (
-          <p role="alert" className="text-sm text-danger">
-            {loadError}
-          </p>
+          <ErrorText>{loadError}</ErrorText>
         ) : !ready ? (
-          <p className="text-center text-content-muted">Cargando…</p>
+          <p className="py-10 text-center text-content-muted">Cargando…</p>
         ) : (
           <>
             <SyncBanner online={online} pending={pending} />
-            <button
-              type="button"
-              onClick={onStart}
-              className="rounded-lg bg-brand px-4 py-4 text-lg font-medium text-brand-content"
-            >
-              {routineIdFromNav ? 'Empezar esta rutina' : 'Empezar entreno'}
-            </button>
+            <Empty
+              title={routineIdFromNav ? 'Tu rutina te espera' : 'Sin entreno en curso'}
+              hint={
+                routineIdFromNav
+                  ? 'Los ejercicios de la rutina aparecerán listos para registrar.'
+                  : 'Empieza uno y elige los ejercicios sobre la marcha.'
+              }
+              action={
+                <Button variant="primary" size="lg" onClick={onStart}>
+                  {routineIdFromNav ? 'Empezar esta rutina' : 'Empezar entreno'}
+                </Button>
+              }
+            />
           </>
         )}
       </section>
     )
   }
 
+  const totalTarget = routineItems.reduce(
+    (sum, item) => sum + (item.targetSets ?? 0),
+    0,
+  )
+
   return (
-    <section className="flex flex-col gap-4 p-4">
-      <h1 className="text-2xl font-bold text-content">Entrenar</h1>
+    <section className="mx-auto flex w-full max-w-2xl flex-col gap-5 p-4 pb-24">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <Eyebrow tone="cardio">En curso</Eyebrow>
+          <h1 className="mt-1 text-4xl font-extrabold text-content">
+            {routineName ?? 'Entreno libre'}
+          </h1>
+        </div>
+      </header>
 
       <SyncBanner online={online} pending={pending} />
+
+      <div className="flex gap-3">
+        <Stat value={sets.length} label="Series hoy" />
+        <Stat
+          value={new Set(sets.map((set) => set.exerciseId)).size}
+          label="Ejercicios"
+        />
+        <Stat
+          value={formatWeight(
+            sets.reduce((sum, set) => sum + set.weight * set.reps, 0),
+          ).replace(' kg', '')}
+          label="Volumen kg"
+        />
+      </div>
+
+      {totalTarget > 0 && (
+        <div>
+          <ProgressBar value={sets.length} max={totalTarget} />
+          <p className="mt-2 text-sm text-content-muted">
+            <b className="text-content">{sets.length}</b> de {totalTarget} series
+            de la rutina
+          </p>
+        </div>
+      )}
 
       {exercise ? (
         <>
           <SetLogger
             exerciseName={exercise.name}
             lastSets={lastPerformance(history, exercise.id, workout.id)}
+            target={
+              routineItems
+                .filter((item) => item.exerciseId === exercise.id)
+                .map((item) => ({ sets: item.targetSets, reps: item.targetReps }))[0] ??
+              null
+            }
             onLog={onLog}
           />
-          <button
-            type="button"
-            onClick={() => setExercise(null)}
-            className="rounded-lg border border-border px-4 py-3 font-medium text-content"
-          >
-            Cambiar de ejercicio
-          </button>
+          <Button onClick={() => setExercise(null)}>Cambiar de ejercicio</Button>
         </>
       ) : (
         <>
           {routineItems.length > 0 && (
             <div className="flex flex-col gap-2">
-              <h2 className="text-lg font-semibold text-content">
-                {routineName ?? 'Tu rutina'}
-              </h2>
+              <Eyebrow tone="strength">Tu rutina</Eyebrow>
               <ul className="flex flex-col gap-2">
                 {routineItems.map((item) => {
                   const done = sets.filter(
                     (entry) => entry.exerciseId === item.exerciseId,
                   ).length
+                  const target = item.targetSets ?? 0
+                  const complete = target > 0 && done >= target
 
                   return (
                     <li key={item.id}>
@@ -259,17 +303,23 @@ export function WorkoutPage() {
                             imagePaths: [],
                           })
                         }
-                        className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface-raised p-3 text-left"
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl border bg-surface-raised p-3.5 text-left transition-colors ${
+                          complete ? 'border-ok' : 'border-border hover:border-strength'
+                        }`}
                       >
-                        <span className="min-w-0 truncate text-content">
+                        <span className="min-w-0 truncate font-medium text-content">
                           {names[item.exerciseId] ?? item.exerciseId}
                         </span>
-                        <span className="shrink-0 text-sm text-content-muted">
-                          {done > 0
-                            ? `${done}/${item.targetSets ?? '?'} series`
-                            : item.targetSets
-                              ? `${item.targetSets} × ${item.targetReps ?? '?'}`
-                              : 'sin objetivo'}
+                        <span
+                          className={`shrink-0 text-sm tabular-nums ${
+                            complete ? 'text-ok' : 'text-content-muted'
+                          }`}
+                        >
+                          {target > 0
+                            ? `${done}/${target}${complete ? ' ✓' : ''}`
+                            : done > 0
+                              ? `${done} series`
+                              : `${item.targetReps ?? '?'} reps`}
                         </span>
                       </button>
                     </li>
@@ -285,22 +335,27 @@ export function WorkoutPage() {
 
       {sets.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold text-content">Series de hoy</h2>
-          <ul className="flex flex-col gap-2">
+          <Eyebrow>Series de hoy</Eyebrow>
+          <ul className="flex flex-col gap-1.5">
             {sets.map((set) => (
               <li
                 key={set.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-raised px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-raised px-3.5 py-2.5"
               >
-                <span className="min-w-0 truncate text-content">
-                  {names[set.exerciseId] ?? set.exerciseId} ·{' '}
-                  {formatWeight(set.weight)} × {set.reps}
+                <span className="min-w-0 truncate text-sm text-content">
+                  <b className="tabular-nums">
+                    {formatWeight(set.weight)} × {set.reps}
+                  </b>
+                  <span className="text-content-muted">
+                    {' '}
+                    · {names[set.exerciseId] ?? set.exerciseId}
+                  </span>
                 </span>
                 <button
                   type="button"
                   onClick={() => onRemove(set.id)}
                   aria-label={`Borrar serie de ${formatWeight(set.weight)} por ${set.reps}`}
-                  className="shrink-0 rounded-md border border-border px-3 py-1 text-sm text-content-muted"
+                  className="shrink-0 rounded-lg px-2.5 py-1 text-xs uppercase tracking-wider text-content-muted transition-colors hover:text-danger"
                 >
                   Borrar
                 </button>
@@ -310,13 +365,13 @@ export function WorkoutPage() {
         </div>
       )}
 
-      <button
-        type="button"
+      <Button
+        variant={confirmingFinish ? 'danger' : 'secondary'}
         onClick={onFinish}
-        className="rounded-lg border border-border px-4 py-3 font-medium text-content"
+        className="mt-2"
       >
         {confirmingFinish ? '¿Seguro? Toca otra vez' : 'Terminar entreno'}
-      </button>
+      </Button>
     </section>
   )
 }

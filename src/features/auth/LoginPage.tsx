@@ -1,13 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { signInWithIdentifier, signInWithEmail } from './auth-repository'
+import { AuthLayout } from './AuthLayout'
+import { Button, ErrorText, Field } from '../../shared/ui'
 
-const FIELD =
-  'rounded-lg border border-border bg-surface-raised px-4 py-3 text-content'
-const PRIMARY =
-  'rounded-lg bg-brand px-4 py-3 font-medium text-brand-content disabled:opacity-60'
-const SECONDARY =
-  'rounded-lg border border-border px-4 py-3 font-medium text-content disabled:opacity-60'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -64,126 +60,111 @@ export function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-full flex-col items-center justify-center gap-8 p-8">
-      <h1 className="text-4xl font-bold text-content">Trainway</h1>
-
+    <AuthLayout
+      eyebrow="Trainway"
+      title={
+        <>
+          Entrena y no<br />lo <span className="text-cardio">olvides</span>.
+        </>
+      }
+      lead={
+        mode === 'password'
+          ? 'Con tu usuario o tu correo, lo que recuerdes.'
+          : 'Te mandamos un enlace y entras sin contraseña.'
+      }
+      footer={
+        mode === 'password' ? (
+          <Link to="/registro" className="text-content-muted underline">
+            Crear cuenta
+          </Link>
+        ) : null
+      }
+    >
       {mode === 'password' ? (
-        <form onSubmit={onPasswordSubmit} className="flex w-full max-w-sm flex-col gap-3">
-          <label htmlFor="login-identifier" className="text-sm text-content-muted">
-            Usuario o correo
-          </label>
-          <input
+        <form onSubmit={onPasswordSubmit} className="flex flex-col gap-4">
+          <Field
             id="login-identifier"
+            label="Usuario o correo"
             value={identifier}
             onChange={(event) => setIdentifier(event.target.value)}
-            className={FIELD}
             autoComplete="username"
           />
 
-          <label htmlFor="login-password" className="text-sm text-content-muted">
-            Contraseña
-          </label>
-          <input
+          <Field
             id="login-password"
+            label="Contraseña"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className={FIELD}
             autoComplete="current-password"
           />
 
           {error && (
-            <>
-              <p role="alert" className="text-sm text-danger">
-                {error}
-              </p>
-              {/* No depende del identificador: se muestra ante CUALQUIER
-                  fallo de credenciales, incluida una contraseña mal escrita,
-                  así que no delata si la cuenta existe ni si está
-                  confirmada. Existe porque enable_confirmations = true sin
-                  SMTP configurado (ver README.md) puede dejar una cuenta
-                  real, recién creada, sin poder confirmarse nunca -- y hoy
-                  esa cuenta recibe exactamente el mismo "Credenciales
-                  inválidas" que una contraseña mala, sin ninguna pista de
-                  qué hacer. Visualmente subordinada al error: texto más
-                  pequeño y del color neutro, no del color de error. */}
-              <p className="text-xs text-content-muted">
+            <div>
+              <ErrorText>{error}</ErrorText>
+              <p className="mt-1.5 text-xs text-content-muted">
                 ¿Acabas de registrarte? Confirma tu correo antes de entrar.
               </p>
-            </>
+            </div>
           )}
 
-          <button type="submit" disabled={busy} className={PRIMARY}>
+          <Button type="submit" variant="primary" size="lg" disabled={busy}>
             {busy ? 'Entrando…' : 'Entrar'}
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
             disabled={busy}
             onClick={() => {
               setMode('magic')
               setError(null)
-              setIdentifier('')
               setPassword('')
+              setIdentifier('')
             }}
-            className={SECONDARY}
           >
             Enlace por correo
-          </button>
-
-          <Link to="/registro" className="pt-2 text-center text-sm text-content-muted">
-            Crear cuenta
-          </Link>
+          </Button>
         </form>
       ) : linkSent ? (
-        <p className="max-w-sm text-center text-content-muted">
-          Te enviamos un enlace a <strong className="text-content">{email}</strong>.
-          Ábrelo en este dispositivo para entrar.
-        </p>
+        <div className="rounded-2xl border border-border bg-surface-raised p-5">
+          <p className="text-content-muted">
+            Te enviamos un enlace a{' '}
+            <strong className="text-content">{email}</strong>. Ábrelo en este
+            dispositivo para entrar.
+          </p>
+        </div>
       ) : (
-        <form onSubmit={onMagicSubmit} className="flex w-full max-w-sm flex-col gap-3">
-          <label htmlFor="login-email" className="text-sm text-content-muted">
-            Correo
-          </label>
-          <input
+        <form onSubmit={onMagicSubmit} className="flex flex-col gap-4">
+          <Field
             id="login-email"
+            label="Correo"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className={FIELD}
             placeholder="tu@correo.com"
             autoComplete="email"
           />
 
-          {error && (
-            <p role="alert" className="text-sm text-danger">
-              {error}
-            </p>
-          )}
+          {error && <ErrorText>{error}</ErrorText>}
 
-          <button type="submit" disabled={busy} className={PRIMARY}>
-            {busy ? 'Enviando…' : 'Enviar enlace de acceso'}
-          </button>
+          <Button type="submit" variant="primary" size="lg" disabled={busy}>
+            {busy ? 'Enviando…' : 'Enviar enlace'}
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
             disabled={busy}
             onClick={() => {
               setMode('password')
               setError(null)
             }}
-            className={SECONDARY}
           >
             Usar contraseña
-          </button>
+          </Button>
         </form>
       )}
-
-      {/* Acceso con Google está diferido: supabase/config.toml no tiene
-          [auth.external.google] configurado todavía, así que el botón
-          solo llevaría a un error de "Unsupported provider". signInWithGoogle
-          sigue exportado y probado en auth-repository.ts para cuando existan
-          credenciales de OAuth de Google. */}
-    </main>
+    </AuthLayout>
   )
 }
