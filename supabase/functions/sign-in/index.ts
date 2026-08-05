@@ -219,12 +219,18 @@ Deno.serve(async (request) => {
   } catch (err) {
     // Este catch es un respaldo, no la primera línea de defensa contra una
     // variable de entorno ausente: eso ahora aborta la carga del módulo más
-    // arriba (requireEnv), antes de que llegue ninguna petición. Lo que
-    // queda aquí es infraestructura genuina -- un fallo de red al hablar con
-    // GoTrue o Postgres, por ejemplo -- y es igual de improbable sin
-    // importar qué identificador se haya pedido, así que reportarlo aparte
-    // (UNAVAILABLE/503) no delata ninguna cuenta. La causa real queda en los
-    // logs, no en la respuesta.
+    // arriba (requireEnv), antes de que llegue ninguna petición. Y no es
+    // tampoco donde aterriza un fallo de red al hablar con GoTrue o
+    // Postgres: verificado contra @supabase/auth-js@2.112.0 y
+    // @supabase/postgrest-js, ninguno de los dos clientes lanza ante un
+    // fetch fallido -- ambos lo devuelven como error normal (GoTrue con
+    // status: 0, ver isServiceError en logic.ts), así que ese caso ya se
+    // maneja arriba, antes de llegar aquí. Lo que queda para este catch es
+    // lo verdaderamente no anticipado: un bug propio, o un comportamiento
+    // del SDK que ninguno de los chequeos de arriba contempló. Es igual de
+    // improbable sin importar qué identificador se haya pedido, así que
+    // reportarlo aparte (UNAVAILABLE/503) no delata ninguna cuenta. La causa
+    // real queda en los logs, no en la respuesta.
     console.error('sign-in unexpected error', err)
     return failure({ error: UNAVAILABLE }, 503)
   }

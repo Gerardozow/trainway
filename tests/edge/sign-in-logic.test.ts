@@ -31,6 +31,16 @@ describe('isServiceError', () => {
   it('no trata la ausencia de status como falla del servicio', () => {
     expect(isServiceError({})).toBe(false)
   })
+
+  // Verificado contra @supabase/auth-js@2.112.0: un fallo de fetch al hablar
+  // con GoTrue (red caída, DNS, timeout) no lanza -- vuelve como
+  // AuthRetryableFetchError con status: 0. Sin este caso, status 0 fallaba
+  // isServiceError (0 no es >= 500 ni === 429) y cada llamada que no podía
+  // siquiera alcanzar a GoTrue le decía a quien intentaba entrar que su
+  // contraseña estaba mal, en vez de que el servicio no estaba disponible.
+  it('trata status 0 (fetch no pudo alcanzar a GoTrue) como falla del servicio', () => {
+    expect(isServiceError({ status: 0 })).toBe(true)
+  })
 })
 
 describe('requireEnv', () => {
@@ -70,6 +80,23 @@ describe('resolveMinFailureMs', () => {
 
   it('cae al default cuando la variable es negativa', () => {
     expect(resolveMinFailureMs('-10', 250)).toBe(250)
+  })
+
+  // `0` es un número finito y no negativo -- pasaba `parsed >= 0` sin avisar,
+  // apagando en silencio la única defensa de tiempo del camino de sign-in.
+  // Un secreto que, puesto a un valor que parece razonable, desactiva un
+  // control de seguridad sin ninguna señal es peor que uno que simplemente
+  // no parsea.
+  it('cae al default cuando la variable es cero, no la acepta como piso válido', () => {
+    expect(resolveMinFailureMs('0', 250)).toBe(250)
+  })
+
+  // Un valor de solo espacios no es "vacío" para el chequeo `!raw` (la
+  // cadena tiene longitud > 0), pero Number('   ') es 0 -- el mismo apagado
+  // en silencio que el caso anterior, por una vía distinta. trim() antes de
+  // convertir cierra las dos a la vez.
+  it('cae al default cuando la variable es solo espacios', () => {
+    expect(resolveMinFailureMs('   ', 250)).toBe(250)
   })
 })
 
