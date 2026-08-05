@@ -37,6 +37,60 @@ pruebas en <http://127.0.0.1:54324>.
 | `pnpm db:stop` | Detiene Supabase local |
 | `pnpm db:reset` | Recrea la base local y aplica las migraciones |
 
+## Despliegue de la Edge Function
+
+`sign-in` es la única función Edge del proyecto: recibe identificador
+(correo o username) más contraseña y devuelve una sesión. Desplegarla:
+
+```bash
+pnpm supabase functions deploy sign-in
+```
+
+Antes del primer despliegue real hay que fijar el secreto `ALLOWED_ORIGINS`
+(lista de orígenes separados por coma, sin protocolo de más ni espacios) a
+los orígenes reales de la PWA:
+
+```bash
+pnpm supabase secrets set ALLOWED_ORIGINS=https://tu-dominio.com,https://otro-dominio.com
+```
+
+Sin esto, la función cae al valor por defecto de desarrollo
+(`http://localhost:5173,http://127.0.0.1:5173`) y sirve
+`Access-Control-Allow-Origin` apuntando a `localhost` para cualquier origen
+real: el navegador descarta la respuesta por CORS y quien intenta entrar ve
+"No se pudo conectar. Revisa tu conexión.", sin ninguna pista de que el
+problema es de configuración. La función lo grita en sus propios logs al
+arrancar (`console.error`) si detecta que sigue en el valor por defecto —
+revisar `pnpm supabase functions logs sign-in` tras desplegar si el login
+falla en producción.
+
+`pnpm test:edge` habla con la función real por HTTP, no con un mock: antes
+de correrlo hace falta el stack local levantado y la función servida en otra
+terminal:
+
+```bash
+pnpm db:start
+pnpm supabase functions serve sign-in --no-verify-jwt
+```
+
+## Confirmación de correo (SMTP)
+
+`supabase/config.toml` tiene `enable_confirmations = true`: ninguna cuenta
+puede iniciar sesión sin confirmar su correo primero. En local, los correos
+se leen en el buzón de pruebas (`http://127.0.0.1:54324`) sin salir a
+internet, pero `[auth.email.smtp]` está comentado por completo —
+**antes de cualquier despliegue real hay que configurarlo** (host, puerto y
+credenciales de un proveedor real de correo).
+
+Sin SMTP configurado, GoTrue no puede entregar el correo de confirmación a
+nadie: cada cuenta nueva queda permanentemente sin confirmar, y el inicio de
+sesión de una cuenta sin confirmar devuelve, correctamente (por la propiedad
+de que un fallo de credenciales nunca distingue la causa), el mismo
+"Credenciales inválidas" que una contraseña mala — sin reenvío de correo y
+sin forma de recuperarla. Es la forma más cercana a un abandono permanente
+que tiene la rama, y nace de un valor por defecto de configuración, no de un
+error de quien se registra.
+
 ## Acceso con Google
 
 Diferido. `signInWithGoogle` vive en `auth-repository.ts` y sus pruebas, pero

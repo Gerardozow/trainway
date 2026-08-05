@@ -1,8 +1,23 @@
 import { createClient } from '@supabase/supabase-js'
+import { isServiceError, requireEnv, resolveMinFailureMs, usingDefaultOrigins } from './logic.ts'
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
-const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+// Las tres se leen y verifican aquí, a nivel de módulo -- no dentro del
+// handler. `Deno.env.get(...)!` no lanza si la variable falta: da
+// `undefined` en silencio, y entonces `createClient` revienta más abajo,
+// dentro de cada petición, aterrizando en el catch y devolviendo un
+// veredicto de credenciales (INVALID/400) para el 100% de quienes intenten
+// entrar -- un despliegue self-hosted al que le falte un secreto le diría a
+// todo el mundo que su contraseña está mal. `requireEnv` lanza aquí en
+// cambio, a nivel de módulo: la función ni siquiera arranca, y el runtime de
+// Supabase responde con un 5xx de arranque que el cliente traduce a
+// "Servicio no disponible" (ver signInWithIdentifier en
+// src/features/auth/auth-repository.ts), no a una contraseña mala.
+const SUPABASE_URL = requireEnv('SUPABASE_URL', Deno.env.get('SUPABASE_URL'))
+const ANON_KEY = requireEnv('SUPABASE_ANON_KEY', Deno.env.get('SUPABASE_ANON_KEY'))
+const SERVICE_KEY = requireEnv(
+  'SUPABASE_SERVICE_ROLE_KEY',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+)
 
 // Un único mensaje para todos los fallos de credenciales. Distinguir entre
 // "ese username no existe" y "la contraseña está mal" convierte esta función
@@ -26,8 +41,17 @@ const UNAVAILABLE = 'Servicio no disponible, intenta de nuevo'
 // Un piso fijo, y no jitter aleatorio, es lo que cierra esa diferencia:
 // el jitter se promedia con suficientes muestras, un piso no, porque cada
 // respuesta tarda exactamente lo mismo desde afuera sin importar el trabajo
-// real que hizo por debajo. 250 deja margen amplio sobre los ~75ms medidos.
-const MIN_FAILURE_MS = 250
+// real que hizo por debajo. 250 deja margen amplio sobre los ~75ms medidos
+// en local -- pero es un mínimo, no un tope: si en producción la RPC más
+// GoTrue tardan más que esto, la respuesta sale a su latencia real y el
+// oráculo de tiempo se reabre sin que nada lo señale (ver el console.warn
+// en `failure` más abajo). MIN_FAILURE_MS permite subir el piso sin tocar
+// código si eso llega a pasar; el default sigue siendo 250.
+const DEFAULT_MIN_FAILURE_MS = 250
+const MIN_FAILURE_MS = resolveMinFailureMs(
+  Deno.env.get('MIN_FAILURE_MS'),
+  DEFAULT_MIN_FAILURE_MS,
+)
 
 // Orígenes desde los que se acepta la llamada. Sin esto, cualquier página
 // del navegador de cualquier visitante podría invocar esta función contra
@@ -44,6 +68,24 @@ const MIN_FAILURE_MS = 250
 // comprueba longitud en vez de solo nulidad.
 const DEFAULT_ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173'
 const rawAllowedOrigins = Deno.env.get('ALLOWED_ORIGINS')
+
+if (usingDefaultOrigins(rawAllowedOrigins)) {
+  // Grita en los logs de arranque, no solo en un comentario que nadie
+  // relee al desplegar. Sin ALLOWED_ORIGINS puesto, el primer despliegue
+  // real sirve `Access-Control-Allow-Origin: http://localhost:5173` a un
+  // navegador que llama desde el dominio real de la PWA -- el navegador
+  // descarta la respuesta por CORS y quien intenta entrar ve "No se pudo
+  // conectar. Revisa tu conexión.", indistinguible de un problema de su
+  // propia red. `pnpm supabase functions logs sign-in` es donde esto se ve.
+  console.error(
+    'ALLOWED_ORIGINS no está configurado: sign-in está sirviendo los valores por ' +
+      `defecto de desarrollo (${DEFAULT_ALLOWED_ORIGINS}). Un despliegue real necesita ` +
+      'fijar el secreto ALLOWED_ORIGINS a los orígenes reales de la PWA -- ver ' +
+      'README.md, sección "Despliegue de la Edge Function" -- o todo inicio de sesión ' +
+      'con contraseña va a fallar por CORS.',
+  )
+}
+
 const ALLOWED_ORIGINS = (
   rawAllowedOrigins && rawAllowedOrigins.length > 0 ? rawAllowedOrigins : DEFAULT_ALLOWED_ORIGINS
 )
@@ -68,16 +110,6 @@ function json(body: unknown, status: number, cors: Record<string, string>): Resp
   })
 }
 
-// Un error de GoTrue con estado 5xx es una falla del servicio, no de la
-// cuenta: ocurre igual sin importar el identificador que se haya pedido, así
-// que reportarla aparte (503) no delata nada. Cualquier otro código (400
-// contraseña mala, 429 límite de tasa, cuenta no confirmada, cuenta
-// suspendida, etc.) sigue colapsando a INVALID: revelar cuál de esas razones
-// aplica sí delataría que la cuenta existe.
-function isServiceError(error: { status?: number }): boolean {
-  return typeof error.status === 'number' && error.status >= 500
-}
-
 Deno.serve(async (request) => {
   const startedAt = performance.now()
   const cors = corsHeaders(request.headers.get('origin'))
@@ -90,6 +122,17 @@ Deno.serve(async (request) => {
     const remaining = MIN_FAILURE_MS - elapsed
     if (remaining > 0) {
       await new Promise((resolve) => setTimeout(resolve, remaining))
+    } else if (remaining < 0) {
+      // El piso es un mínimo, no un tope (ver el comentario sobre
+      // MIN_FAILURE_MS más arriba): si esto se ve en los logs de
+      // producción, la ruta ya tardó más que el piso configurado y el
+      // oráculo de tiempo está reabierto ahora mismo, en silencio, sin este
+      // warn. Subir MIN_FAILURE_MS o investigar la latencia real es lo que
+      // corresponde cuando aparece.
+      console.warn(
+        `sign-in: el tiempo transcurrido (${elapsed.toFixed(1)}ms) superó ` +
+          `MIN_FAILURE_MS (${MIN_FAILURE_MS}ms); esta respuesta salió sin piso.`,
+      )
     }
     return json(body, status, cors)
   }
@@ -174,12 +217,15 @@ Deno.serve(async (request) => {
     // sesión que recibe se lo dice — así que no hay nada que igualar aquí.
     return json({ session: data.session }, 200, cors)
   } catch (err) {
-    // Cualquier excepción no anticipada — por ejemplo, una variable de
-    // entorno ausente que hace fallar createClient — no se distingue de un
-    // fallo de credenciales de cara afuera. No hay forma de saber si
-    // correspondía a un username o a un correo, así que el default seguro
-    // es no distinguir; la causa real queda en los logs, no en la respuesta.
+    // Este catch es un respaldo, no la primera línea de defensa contra una
+    // variable de entorno ausente: eso ahora aborta la carga del módulo más
+    // arriba (requireEnv), antes de que llegue ninguna petición. Lo que
+    // queda aquí es infraestructura genuina -- un fallo de red al hablar con
+    // GoTrue o Postgres, por ejemplo -- y es igual de improbable sin
+    // importar qué identificador se haya pedido, así que reportarlo aparte
+    // (UNAVAILABLE/503) no delata ninguna cuenta. La causa real queda en los
+    // logs, no en la respuesta.
     console.error('sign-in unexpected error', err)
-    return failure({ error: INVALID }, 400)
+    return failure({ error: UNAVAILABLE }, 503)
   }
 })
