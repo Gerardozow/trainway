@@ -3,8 +3,7 @@ import { AppShell } from './AppShell'
 import { LoginPage } from '../features/auth/LoginPage'
 import { SignupPage } from '../features/auth/SignupPage'
 import { RequireAuth } from '../features/auth/RequireAuth'
-import { ThemeToggle } from '../features/theme/ThemeToggle'
-import { signOut } from '../features/auth/auth-repository'
+import { ProfilePage } from '../features/profile/ProfilePage'
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -33,25 +32,6 @@ function RouteError() {
         Volver al inicio
       </Link>
     </main>
-  )
-}
-
-function ProfilePage() {
-  return (
-    <section className="flex flex-col gap-6 p-6">
-      <h1 className="text-2xl font-bold text-content">Perfil</h1>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm text-content-muted">Tema</span>
-        <ThemeToggle />
-      </div>
-      <button
-        type="button"
-        onClick={() => signOut()}
-        className="self-start rounded-lg border border-border px-4 py-2 text-content"
-      >
-        Cerrar sesión
-      </button>
-    </section>
   )
 }
 
