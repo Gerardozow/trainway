@@ -43,8 +43,16 @@ describe('RLS de routines y routine_exercises', () => {
     if (itemError) throw itemError
   }, 30_000)
 
+  // Hay que borrar antes las rutinas: sus ejercicios referencian el ejercicio
+  // de prueba por llave foránea y el borrado fallaría en silencio, dejando un
+  // ejercicio de prueba en el catálogo real de la pantalla.
   afterAll(async () => {
-    await adminClient().from('exercises').delete().eq('id', exerciseId)
+    const admin = adminClient()
+    await admin.from('routines').delete().eq('owner_id', alice.id)
+    await admin.from('routines').delete().eq('owner_id', bob.id)
+
+    const { error } = await admin.from('exercises').delete().eq('id', exerciseId)
+    if (error) throw error
   })
 
   it('deja al dueño leer su rutina', async () => {

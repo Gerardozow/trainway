@@ -1,5 +1,7 @@
 # Trainway
 
+> Para probarla en cinco minutos, ver [DEMO.md](DEMO.md).
+
 Registra tus entrenos de gimnasio y comparte rutinas con tus amigos. PWA instalable.
 
 ## Requisitos
@@ -47,7 +49,9 @@ Unlicense. La licencia no exige atribución; se pone igual.
 | `pnpm test:rls` | Pruebas de aislamiento de la base (proyecto `rls`); requiere `pnpm db:start` primero |
 | `pnpm db:start` | Levanta Supabase local (Docker) |
 | `pnpm db:stop` | Detiene Supabase local |
-| `pnpm db:reset` | Recrea la base local y aplica las migraciones |
+| `pnpm db:reset` | Recrea la base local y aplica las migraciones (borra el catálogo) |
+| `pnpm db:reset:full` | Lo anterior y además vuelve a sembrar el catálogo |
+| `pnpm seed:demo` | Crea la cuenta de demostración con rutina y entrenos |
 | `pnpm seed:exercises` | Puebla el catálogo de ejercicios y sube sus imágenes |
 
 ## Si las pruebas fallan con `AuthRetryableFetchError`

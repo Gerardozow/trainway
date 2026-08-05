@@ -45,9 +45,16 @@ describe('RLS de workouts y workout_sets', () => {
     if (setError) throw setError
   }, 30_000)
 
-  // El ejercicio de prueba es global y aparecería en el catálogo real.
+  // El ejercicio de prueba es global y aparecería en el catálogo real de la
+  // pantalla. Hay que borrar antes los entrenos: sus series lo referencian por
+  // llave foránea y el borrado del ejercicio fallaría en silencio.
   afterAll(async () => {
-    await adminClient().from('exercises').delete().eq('id', exerciseId)
+    const admin = adminClient()
+    await admin.from('workouts').delete().eq('user_id', alice.id)
+    await admin.from('workouts').delete().eq('user_id', bob.id)
+
+    const { error } = await admin.from('exercises').delete().eq('id', exerciseId)
+    if (error) throw error
   })
 
   it('deja al dueño leer su entreno', async () => {
