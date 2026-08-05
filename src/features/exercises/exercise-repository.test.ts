@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const selectMock = vi.fn()
+const rangeMock = vi.fn()
 
 // El módulo real revienta al cargar si faltan las variables de entorno, así que
 // se simula: `pnpm test` tiene que pasar en un clon limpio sin .env.local.
+// La cadena imita la de postgrest-js: select().order().range() y ahí se espera.
 vi.mock('../../lib/supabase', () => ({
   supabase: {
-    from: () => ({ select: (...args: unknown[]) => selectMock(...args) }),
+    from: () => ({
+      select: (...args: unknown[]) => {
+        selectMock(...args)
+        return {
+          order: () => ({ range: (...r: unknown[]) => rangeMock(...r) }),
+        }
+      },
+    }),
   },
 }))
 
@@ -15,10 +24,11 @@ const { fetchAllExercises, exerciseImageUrl } = await import('./exercise-reposit
 describe('exercise-repository', () => {
   beforeEach(() => {
     selectMock.mockReset()
+    rangeMock.mockReset()
   })
 
   it('convierte las columnas snake_case del servidor a camelCase', async () => {
-    selectMock.mockResolvedValue({
+    rangeMock.mockResolvedValue({
       data: [
         {
           id: 'squat',
@@ -56,7 +66,7 @@ describe('exercise-repository', () => {
   })
 
   it('sustituye por arreglos vacíos las columnas nulas', async () => {
-    selectMock.mockResolvedValue({
+    rangeMock.mockResolvedValue({
       data: [
         {
           id: 'x',
@@ -79,21 +89,78 @@ describe('exercise-repository', () => {
   })
 
   it('devuelve vacío cuando el catálogo está vacío', async () => {
-    selectMock.mockResolvedValue({ data: [], error: null })
+    rangeMock.mockResolvedValue({ data: [], error: null })
     expect(await fetchAllExercises()).toEqual([])
   })
 
   it('lanza cuando el servidor devuelve error', async () => {
-    selectMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    rangeMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
     await expect(fetchAllExercises()).rejects.toThrow(/catálogo/i)
   })
 
   it('lanza sin filtrar el mensaje interno del servidor', async () => {
-    selectMock.mockResolvedValue({
+    rangeMock.mockResolvedValue({
       data: null,
       error: { message: 'relation "public.exercises" does not exist' },
     })
     await expect(fetchAllExercises()).rejects.not.toThrow(/relation/)
+  })
+
+  it('pide una sola página cuando el catálogo cabe en ella', async () => {
+    rangeMock.mockResolvedValue({ data: [{ id: 'a', name: 'A' }], error: null })
+
+    await fetchAllExercises()
+
+    expect(rangeMock).toHaveBeenCalledOnce()
+    expect(rangeMock).toHaveBeenCalledWith(0, 499)
+  })
+
+  it('sigue pidiendo mientras las páginas vengan llenas', async () => {
+    const full = Array.from({ length: 500 }, (_, index) => ({
+      id: `a${index}`,
+      name: `A${index}`,
+    }))
+    const partial = [{ id: 'z', name: 'Z' }]
+
+    rangeMock
+      .mockResolvedValueOnce({ data: full, error: null })
+      .mockResolvedValueOnce({ data: partial, error: null })
+
+    const exercises = await fetchAllExercises()
+
+    // Sin paginar, PostgREST cortaría en 1000 filas sin avisar y el catálogo
+    // llegaría incompleto a un usuario con muchos ejercicios propios.
+    expect(exercises).toHaveLength(501)
+    expect(rangeMock).toHaveBeenCalledTimes(2)
+    expect(rangeMock).toHaveBeenNthCalledWith(1, 0, 499)
+    expect(rangeMock).toHaveBeenNthCalledWith(2, 500, 999)
+  })
+
+  it('para cuando una página vuelve vacía', async () => {
+    const full = Array.from({ length: 500 }, (_, index) => ({
+      id: `a${index}`,
+      name: `A${index}`,
+    }))
+
+    rangeMock
+      .mockResolvedValueOnce({ data: full, error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+
+    expect(await fetchAllExercises()).toHaveLength(500)
+    expect(rangeMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('propaga el error de una página posterior, no solo de la primera', async () => {
+    const full = Array.from({ length: 500 }, (_, index) => ({
+      id: `a${index}`,
+      name: `A${index}`,
+    }))
+
+    rangeMock
+      .mockResolvedValueOnce({ data: full, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+
+    await expect(fetchAllExercises()).rejects.toThrow(/catálogo/i)
   })
 
   it('arma la URL pública de una imagen', () => {

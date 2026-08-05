@@ -37,19 +37,47 @@ function toExercise(row: ExerciseRow): Exercise {
 }
 
 /**
- * Trae el catálogo entero. Son ~873 filas de texto: cabe de sobra en una sola
- * petición, y traerlo completo es lo que permite buscar en local sin ida y
- * vuelta al servidor por cada tecla.
+ * Cuántas filas se piden por vuelta. PostgREST corta cualquier respuesta en
+ * `max_rows` (1000 en config.toml) y no avisa de que truncó: devuelve las
+ * primeras y ya. Pedir de a 500 y parar cuando llega una página incompleta
+ * evita depender de ese límite.
+ */
+const PAGE_SIZE = 500
+
+/**
+ * Trae el catálogo entero, paginando.
+ *
+ * Son ~873 ejercicios globales más los propios de cada usuario. Sin paginar,
+ * un usuario con 128 ejercicios propios pasaría de las 1000 filas del límite
+ * de PostgREST y perdería parte del catálogo en silencio.
+ *
+ * Traerlo completo es lo que permite buscar en local sin ida y vuelta al
+ * servidor por cada tecla.
  */
 export async function fetchAllExercises(): Promise<Exercise[]> {
-  const { data, error } = await supabase.from('exercises').select(COLUMNS)
+  const rows: ExerciseRow[] = []
 
-  if (error) {
-    // El mensaje del servidor puede llevar detalles del esquema; no se propaga.
-    throw new Error('No se pudo cargar el catálogo de ejercicios')
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('exercises')
+      .select(COLUMNS)
+      // Un orden estable es obligatorio al paginar: sin él, dos páginas
+      // pueden repetir filas y saltarse otras.
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) {
+      // El mensaje del servidor puede llevar detalles del esquema; no se propaga.
+      throw new Error('No se pudo cargar el catálogo de ejercicios')
+    }
+
+    const page = (data ?? []) as ExerciseRow[]
+    rows.push(...page)
+
+    if (page.length < PAGE_SIZE) break
   }
 
-  return (data as ExerciseRow[]).map(toExercise)
+  return rows.map(toExercise)
 }
 
 export function exerciseImageUrl(path: string): string {
