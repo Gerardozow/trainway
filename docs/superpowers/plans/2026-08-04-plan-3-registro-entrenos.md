@@ -47,7 +47,7 @@ Planes 1, 1b y 2 completos:
 ```
 supabase/
   migrations/
-    0005_workouts.sql              # workouts, workout_sets, RLS, grants
+    0006_workouts.sql              # workouts, workout_sets, RLS, grants
 src/
   lib/
     db.ts                          # + versión 2: workouts, workoutSets, syncQueue
@@ -76,7 +76,7 @@ Regla de decomposición: `lastPerformance.ts` y `workout-types.ts` no importan R
 ### Task 1: Tablas de entrenos con RLS
 
 **Files:**
-- Create: `supabase/migrations/0005_workouts.sql`, `tests/rls/workouts.test.ts`
+- Create: `supabase/migrations/0006_workouts.sql`, `tests/rls/workouts.test.ts`
 
 **Interfaces:**
 - Consumes: `public.exercises` y `auth.users`.
@@ -84,7 +84,7 @@ Regla de decomposición: `lastPerformance.ts` y `workout-types.ts` no importan R
 
 - [ ] **Step 1: Escribir la migración**
 
-Crear `supabase/migrations/0005_workouts.sql`:
+Crear `supabase/migrations/0006_workouts.sql`:
 
 ```sql
 create table public.workouts (
@@ -188,7 +188,7 @@ grant all on public.workout_sets to service_role;
 ```bash
 pnpm db:reset
 ```
-Esperado: aplica de `0001` a `0005` sin errores.
+Esperado: aplica de `0001` a `0006` sin errores.
 
 - [ ] **Step 3: Escribir las pruebas que fallan**
 
@@ -426,7 +426,7 @@ Esperado: PASAN las 35.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/0005_workouts.sql tests/rls/workouts.test.ts
+git add supabase/migrations/0006_workouts.sql tests/rls/workouts.test.ts
 git commit -m "feat: add workouts and workout_sets tables with private RLS"
 ```
 
