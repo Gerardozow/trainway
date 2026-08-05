@@ -7,10 +7,16 @@ export type Profile = {
   avatar_url: string | null
 }
 
+// Recorta antes de validar: UsernameOnboarding ya recortaba antes de llamar,
+// pero SignupPage no lo hacía, así que un espacio al final producía "Solo
+// minúsculas, números y guion bajo" -- un mensaje confuso para un error que
+// no se ve en el campo. Recortar aquí, una sola vez, hace que todo llamador
+// vea el mismo veredicto sin depender de que cada pantalla lo recuerde.
 export function validateUsername(value: string): string | null {
-  if (value.length < 3) return 'El username necesita al menos 3 caracteres'
-  if (value.length > 20) return 'El username no puede pasar de 20 caracteres'
-  if (!/^[a-z0-9_]+$/.test(value)) {
+  const trimmed = value.trim()
+  if (trimmed.length < 3) return 'El username necesita al menos 3 caracteres'
+  if (trimmed.length > 20) return 'El username no puede pasar de 20 caracteres'
+  if (!/^[a-z0-9_]+$/.test(trimmed)) {
     return 'Solo minúsculas, números y guion bajo'
   }
   return null
@@ -31,12 +37,19 @@ export async function setUsername(
   userId: string,
   username: string,
 ): Promise<{ error: string | null }> {
-  const invalid = validateUsername(username)
+  // validateUsername valida la versión recortada, pero devuelve solo un
+  // mensaje de error, no el valor normalizado -- así que se recorta también
+  // aquí, antes de persistir. Sin esto, un espacio al final pasaría la
+  // validación y llegaría crudo a la fila, donde el CHECK de la base
+  // (username_format) lo rechazaría con un error genérico en vez de guardar
+  // lo que la persona quiso escribir.
+  const trimmed = username.trim()
+  const invalid = validateUsername(trimmed)
   if (invalid) return { error: invalid }
 
   const { data, error } = await supabase
     .from('profiles')
-    .update({ username, updated_at: new Date().toISOString() })
+    .update({ username: trimmed, updated_at: new Date().toISOString() })
     .eq('id', userId)
     .select('id')
 

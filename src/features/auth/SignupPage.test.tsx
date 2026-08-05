@@ -68,6 +68,31 @@ describe('SignupPage', () => {
     )
   })
 
+  // Sin recortar aquí, un espacio al final pasa validateUsername (que sí
+  // recorta) pero llegaría crudo tanto a isUsernameAvailable como a
+  // signUpWithPassword -- el username en la base termina recortado (ver
+  // auth-repository.ts), así que el chequeo previo consultaría un nombre
+  // distinto del que en realidad se va a guardar.
+  it('recorta espacios del username antes de comprobar disponibilidad y enviar', async () => {
+    isUsernameAvailable.mockResolvedValue(true)
+    signUpWithPassword.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    renderSignupPage()
+
+    await user.type(screen.getByLabelText(/correo/i), 'gerardo@tradeway.mx')
+    await user.type(screen.getByLabelText(/contraseña/i), 'contrasena12')
+    await user.type(screen.getByLabelText(/usuario/i), 'gerardo_99 ')
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+
+    expect(await screen.findByText(/cuenta creada/i)).toBeInTheDocument()
+    expect(isUsernameAvailable).toHaveBeenCalledWith('gerardo_99')
+    expect(signUpWithPassword).toHaveBeenCalledWith(
+      'gerardo@tradeway.mx',
+      'contrasena12',
+      'gerardo_99',
+    )
+  })
+
   it('pasa el username a minúsculas mientras se escribe', async () => {
     const user = userEvent.setup()
     renderSignupPage()

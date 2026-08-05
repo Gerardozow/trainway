@@ -242,4 +242,19 @@ describe('signUpWithPassword', () => {
       options: { data: { username: 'gerardo_99' } },
     })
   })
+
+  // Sin este recorte, un espacio al final pasa validateUsername (que sí
+  // recorta) pero viaja crudo en los metadatos -- y handle_new_user lo
+  // rechazaría por formato (mismo regex que el CHECK), dejando el perfil
+  // sin username en silencio: el mismo síntoma permanente que Finding 5
+  // arregla para colisiones, pero por espacios en vez de por otro usuario.
+  it('recorta espacios del username antes de mandarlo en los metadatos', async () => {
+    signUpMock.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    await signUpWithPassword('a@b.com', 'contrasena12', ' gerardo_99 ')
+    expect(signUpMock).toHaveBeenCalledWith({
+      email: 'a@b.com',
+      password: 'contrasena12',
+      options: { data: { username: 'gerardo_99' } },
+    })
+  })
 })

@@ -109,7 +109,16 @@ export async function signUpWithPassword(
     return { error: 'La contraseña necesita al menos 8 caracteres' }
   }
 
-  const invalidUsername = validateUsername(username)
+  // validateUsername valida la versión recortada pero solo devuelve un
+  // mensaje, no el valor normalizado -- así que se recorta también aquí,
+  // antes de mandarlo. Sin esto, un espacio al final pasaría la validación
+  // y viajaría crudo en los metadatos, donde handle_new_user lo rechazaría
+  // por formato (mismo regex que el CHECK) y el perfil nacería sin
+  // username, en silencio: el mismo síntoma permanente que el editor de
+  // ProfilePage existe para arreglar, pero causado por un espacio en vez de
+  // por una colisión con otro usuario.
+  const trimmedUsername = username.trim()
+  const invalidUsername = validateUsername(trimmedUsername)
   if (invalidUsername) return { error: invalidUsername }
 
   const { error } = await supabase.auth.signUp({
@@ -117,7 +126,7 @@ export async function signUpWithPassword(
     password,
     // El username lo escribe el trigger handle_new_user: aquí todavía no hay
     // sesión, así que el cliente no tiene permiso para tocar profiles.
-    options: { data: { username } },
+    options: { data: { username: trimmedUsername } },
   })
   if (error) {
     // Con confirmaciones activas, GoTrue solo ofusca el registro duplicado

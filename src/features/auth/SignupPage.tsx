@@ -17,9 +17,17 @@ export function SignupPage() {
     setError(null)
 
     try {
+      // Recortado una sola vez, aquí, y reusado en las tres llamadas de
+      // abajo: signUpWithPassword también recorta por su cuenta (defensivo,
+      // por si algún otro llamador no lo hiciera), pero sin recortar aquí
+      // también, un espacio al final pasaría validateUsername (que sí
+      // recorta) y llegaría crudo a isUsernameAvailable -- consultando un
+      // username distinto del que en realidad se va a guardar.
+      const normalizedUsername = username.trim()
+
       // Antes de gastar una llamada de red en disponibilidad, el formato:
       // así un username vacío o mal escrito da el error más útil primero.
-      const invalidUsername = validateUsername(username)
+      const invalidUsername = validateUsername(normalizedUsername)
       if (invalidUsername) {
         setError(invalidUsername)
         return
@@ -32,13 +40,13 @@ export function SignupPage() {
       // null y aquí se deja pasar: el trigger handle_new_user es la
       // garantía real de que la cuenta no se pierde, no este pre-chequeo, y
       // fallar cerrado bloquearía toda alta mientras el RPC esté caído.
-      const available = await isUsernameAvailable(username)
+      const available = await isUsernameAvailable(normalizedUsername)
       if (available === false) {
         setError('Ese username ya está tomado')
         return
       }
 
-      const result = await signUpWithPassword(email, password, username)
+      const result = await signUpWithPassword(email, password, normalizedUsername)
       if (result.error) {
         setError(result.error)
         return

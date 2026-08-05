@@ -42,6 +42,16 @@ describe('validateUsername', () => {
   it('rechaza el valor vacío', () => {
     expect(validateUsername('')).not.toBeNull()
   })
+
+  // SignupPage no recortaba antes de validar, así que un espacio al final
+  // producía "Solo minúsculas, números y guion bajo" -- un mensaje confuso
+  // para un error que no se ve. UsernameOnboarding sí recortaba antes de
+  // llamar. Recortar dentro de validateUsername hace que ambos (y cualquier
+  // otro llamador futuro) vean el mismo veredicto sin depender de que cada
+  // pantalla recuerde hacerlo por su cuenta.
+  it('ignora espacios al inicio y al final al validar', () => {
+    expect(validateUsername(' gerardo_99 ')).toBeNull()
+  })
 })
 
 describe('setUsername', () => {
@@ -88,6 +98,19 @@ describe('setUsername', () => {
     select.mockResolvedValue({ data: [], error: null })
     const result = await setUsername('user-1', 'gerardo_99')
     expect(result.error).not.toBeNull()
+  })
+
+  // Sin este recorte, un espacio al final pasa la validación (que sí
+  // recorta) pero llega crudo a la fila -- y el CHECK de la base
+  // (username_format, ^[a-z0-9_]{3,20}$) lo rechazaría con un error genérico
+  // en vez de guardar lo que la persona quiso escribir.
+  it('recorta espacios antes de guardar', async () => {
+    select.mockResolvedValue({ data: [{ id: 'user-1' }], error: null })
+    const result = await setUsername('user-1', ' gerardo_99 ')
+    expect(result.error).toBeNull()
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'gerardo_99' }),
+    )
   })
 })
 
