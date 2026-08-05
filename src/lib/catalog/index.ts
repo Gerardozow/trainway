@@ -1,9 +1,12 @@
 import raw from '../../../data/exercises.json'
 import { filterCandidates as filterWith } from './filter'
+import { findAlternatives as findAlternativesWith, type AlternativeCriteria } from './alternatives'
 import type { Criteria, Exercise } from './types'
 
 export * from './types'
 export { GYM_CARDIO_IDS } from './filter'
+export * from './alternatives'
+export * from './muscleMap'
 export * from './labels.es'
 
 /** El catálogo completo, empaquetado en el bundle para que funcione offline. */
@@ -31,4 +34,8 @@ export function imageUrl(path: string): string {
 
 export function filterCandidates(criteria: Criteria): Exercise[] {
   return filterWith(criteria, ALL_EXERCISES)
+}
+
+export function alternativesFor(criteria: Omit<AlternativeCriteria, never>): Exercise[] {
+  return findAlternativesWith(criteria, ALL_EXERCISES)
 }

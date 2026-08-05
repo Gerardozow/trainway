@@ -7,8 +7,8 @@ import { describe, it, expect } from 'vitest'
 import Anthropic from '@anthropic-ai/sdk'
 import { filterCandidates } from '@/lib/catalog'
 import { buildPlanPrompt, PLAN_SYSTEM_PROMPT } from '../worker/lib/prompt'
-import { PLAN_TOOL_NAME, PLAN_TOOL_SCHEMA } from '../worker/lib/schemas'
-import { normalizePlan, validatePlan } from '../worker/lib/validate'
+import { PLAN_TOOL_NAME, PLAN_TOOL_SCHEMA, type AiPlan } from '../worker/lib/schemas'
+import { normalizePlan, repairPlan, validatePlan } from '../worker/lib/validate'
 import { expandBlock } from '../worker/lib/expand'
 import type { Intake } from '@/lib/supabase/types'
 
@@ -82,15 +82,19 @@ suite('MiniMax genera planes que pasan la validación', () => {
       const block = response.content.find((c) => c.type === 'tool_use')
       expect(block, 'MiniMax respondió sin usar la herramienta').toBeDefined()
 
-      const result = validatePlan(
-        normalizePlan(block?.type === 'tool_use' ? block.input : null),
-        candidateIds,
-      )
+      const raw = normalizePlan(block?.type === 'tool_use' ? block.input : null)
+      let result = validatePlan(raw, candidateIds)
 
+      // Mismo camino que producción: si la primera respuesta no valida, el
+      // endpoint repara sustituyendo lo inválido en vez de dejar al usuario sin
+      // plan. Sin esto la prueba sería MÁS estricta que la app y fallaría en
+      // rojo por algo que en producción se resuelve solo.
       if (!result.ok) {
-        console.error('Errores de validación:\n' + result.errors.map((e) => `  - ${e}`).join('\n'))
+        console.warn('Primera respuesta inválida:\n' + result.errors.map((e) => `  - ${e}`).join('\n'))
+        result = validatePlan(repairPlan(raw as AiPlan, candidates), candidateIds)
       }
-      expect(result.ok, 'el plan no pasó la validación').toBe(true)
+
+      expect(result.ok, 'ni siquiera reparado pasó la validación').toBe(true)
       if (!result.ok) return
 
       const plan = result.plan

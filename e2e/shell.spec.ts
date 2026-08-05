@@ -132,3 +132,27 @@ test('ni html ni body capturan el scroll del viewport', async ({ page }) => {
   expect(overflow.bodyX).toBe('visible')
   expect(overflow.bodyY).toBe('visible')
 })
+
+test('los diálogos declaran su color de texto', async ({ page }) => {
+  await page.goto('entrar')
+
+  // En la top layer el navegador aplica `color: CanvasText` al <dialog>, y los
+  // hijos lo heredan: texto negro sobre fondo oscuro. Cada diálogo tiene que
+  // fijar su propio color. Esto ya pasó dos veces.
+  const color = await page.evaluate(() => {
+    const d = document.createElement('dialog')
+    d.className = 'text-[var(--fg)]'
+    const span = document.createElement('span')
+    d.append(span)
+    document.body.append(d)
+    d.showModal()
+    const c = getComputedStyle(span).color
+    d.close()
+    d.remove()
+    return c
+  })
+
+  // En tema claro --fg es #14140f; en oscuro #fafafa. Nunca el negro puro del
+  // UA (rgb(0, 0, 0)) sin declarar.
+  expect(color).not.toBe('rgb(0, 0, 0)')
+})

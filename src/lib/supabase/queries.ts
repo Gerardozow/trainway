@@ -205,3 +205,82 @@ export async function getTranslations(
   for (const t of (data ?? []) as ExerciseTranslation[]) map[t.exercise_id] = t
   return map
 }
+
+// --- Cambiar un ejercicio por otro ---------------------------------------
+
+/**
+ * Sustituye el ejercicio prescrito por otro que trabaja el mismo músculo.
+ *
+ * Dos alcances, porque son dos problemas distintos:
+ *   'hoy'    la máquina está ocupada — solo esta sesión
+ *   'bloque' el gimnasio no la tiene — este día en las cuatro semanas
+ *
+ * No toca los registros ya hechos: la pantalla impide cambiar un ejercicio con
+ * series marcadas, porque el historial se agrupa por exercise_id y cambiarlo
+ * atribuiría esas series al ejercicio nuevo.
+ */
+export async function swapExercise(args: {
+  programExerciseId: string
+  programDayId: string
+  newExerciseId: string
+  newCategory: string
+  scope: 'hoy' | 'bloque'
+}): Promise<void> {
+  const { programExerciseId, programDayId, newExerciseId, newCategory, scope } = args
+
+  // La nota técnica la escribió la IA para el ejercicio ANTERIOR. Dejarla sería
+  // peor que no tener nota: "retrae escápulas antes de bajar la barra" pegado a
+  // un press en polea es un consejo para otro movimiento.
+  const patch = { exercise_id: newExerciseId, category: newCategory, coach_note: null }
+
+  if (scope === 'hoy') {
+    unwrap(
+      await supabase.from('program_exercises').update(patch).eq('id', programExerciseId).select(),
+    )
+    return
+  }
+
+  // Mismo día de la semana, misma posición, todas las semanas del bloque.
+  const { data: day } = await supabase
+    .from('program_days')
+    .select('program_id, day_index')
+    .eq('id', programDayId)
+    .single()
+  if (!day) return
+
+  const { data: current } = await supabase
+    .from('program_exercises')
+    .select('position')
+    .eq('id', programExerciseId)
+    .single()
+  if (!current) return
+
+  const dayIds = unwrap(
+    await supabase
+      .from('program_days')
+      .select('id')
+      .eq('program_id', day.program_id)
+      .eq('day_index', day.day_index),
+  ) as { id: string }[]
+
+  unwrap(
+    await supabase
+      .from('program_exercises')
+      .update(patch)
+      .in('program_day_id', dayIds.map((d) => d.id))
+      .eq('position', current.position)
+      .select(),
+  )
+}
+
+/** El cuestionario más reciente: de ahí sale el equipamiento disponible. */
+export async function getLatestIntake(userId: string): Promise<Intake | null> {
+  const { data } = await supabase
+    .from('intakes')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data as Intake | null
+}
