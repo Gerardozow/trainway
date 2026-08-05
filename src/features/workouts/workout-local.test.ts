@@ -220,4 +220,15 @@ describe('workout-local', () => {
 
     expect(await allSets()).toHaveLength(2)
   })
+
+  it('guarda la rutina de la que sale el entreno', async () => {
+    const workout = await startWorkout(USER, 'r1')
+    expect(workout.routineId).toBe('r1')
+    expect((await getActiveWorkout())?.routineId).toBe('r1')
+  })
+
+  it('deja la rutina nula en un entreno libre', async () => {
+    const workout = await startWorkout(USER)
+    expect(workout.routineId).toBeNull()
+  })
 })

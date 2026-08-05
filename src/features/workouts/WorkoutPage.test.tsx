@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import userEvent from '@testing-library/user-event'
 import type { Workout, WorkoutSet } from './workout-types'
 
@@ -33,6 +34,11 @@ vi.mock('../exercises/exercise-cache', () => ({
 
 vi.mock('../exercises/exercise-repository', () => ({
   exerciseImageUrl: (path: string) => `http://test/${path}`,
+}))
+
+const fetchRoutine = vi.fn()
+vi.mock('../routines/routine-repository', () => ({
+  fetchRoutine: (...a: unknown[]) => fetchRoutine(...a),
 }))
 
 vi.mock('../auth/useAuth', () => ({
@@ -78,6 +84,14 @@ const CATALOG = [
   },
 ]
 
+function renderPage(state?: { routineId: string }) {
+  return render(
+    <MemoryRouter initialEntries={[{ pathname: '/', state }]}>
+      <WorkoutPage />
+    </MemoryRouter>,
+  )
+}
+
 function setOnline(value: boolean) {
   Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => value })
 }
@@ -94,13 +108,14 @@ describe('WorkoutPage', () => {
     pendingCount.mockReset().mockResolvedValue(0)
     flushQueue.mockReset().mockResolvedValue({ sent: 0, failed: 0 })
     loadExercises.mockReset().mockResolvedValue(CATALOG)
+    fetchRoutine.mockReset().mockResolvedValue(null)
     setOnline(true)
   })
 
   afterEach(() => setOnline(true))
 
   it('ofrece empezar cuando no hay entreno activo', async () => {
-    render(<WorkoutPage />)
+    renderPage()
     expect(
       await screen.findByRole('button', { name: /empezar entreno/i }),
     ).toBeInTheDocument()
@@ -108,17 +123,17 @@ describe('WorkoutPage', () => {
 
   it('empieza un entreno al pulsar', async () => {
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    renderPage()
 
     await user.click(await screen.findByRole('button', { name: /empezar entreno/i }))
 
-    expect(startWorkout).toHaveBeenCalledWith('user-1')
+    expect(startWorkout).toHaveBeenCalledWith('user-1', null)
     expect(await screen.findByText('Sentadilla con barra')).toBeInTheDocument()
   })
 
   it('retoma el entreno que quedó abierto', async () => {
     getActiveWorkout.mockResolvedValue(WORKOUT)
-    render(<WorkoutPage />)
+    renderPage()
 
     expect(
       await screen.findByRole('button', { name: /terminar entreno/i }),
@@ -131,7 +146,7 @@ describe('WorkoutPage', () => {
   it('registra una serie del ejercicio elegido', async () => {
     getActiveWorkout.mockResolvedValue(WORKOUT)
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    renderPage()
 
     await user.click(await screen.findByRole('button', { name: /sentadilla con barra/i }))
     await user.type(screen.getByLabelText(/peso/i), '60')
@@ -154,7 +169,7 @@ describe('WorkoutPage', () => {
     getActiveWorkout.mockResolvedValue(WORKOUT)
     getSetsFor.mockResolvedValue([SET])
 
-    render(<WorkoutPage />)
+    renderPage()
 
     expect(await screen.findByText(/60 kg × 8/)).toBeInTheDocument()
   })
@@ -164,7 +179,7 @@ describe('WorkoutPage', () => {
     getSetsFor.mockResolvedValue([SET])
     const user = userEvent.setup()
 
-    render(<WorkoutPage />)
+    renderPage()
     await screen.findByText(/60 kg × 8/)
 
     await user.click(screen.getByRole('button', { name: /borrar serie/i }))
@@ -177,14 +192,14 @@ describe('WorkoutPage', () => {
     getActiveWorkout.mockResolvedValue(WORKOUT)
     pendingCount.mockResolvedValue(2)
 
-    render(<WorkoutPage />)
+    renderPage()
 
     expect(await screen.findByRole('status')).toHaveTextContent(/sin conexión/i)
   })
 
   it('no avisa con red y sin pendientes', async () => {
     getActiveWorkout.mockResolvedValue(WORKOUT)
-    render(<WorkoutPage />)
+    renderPage()
 
     await screen.findByRole('button', { name: /terminar entreno/i })
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -193,7 +208,7 @@ describe('WorkoutPage', () => {
   it('pide confirmación antes de terminar el entreno', async () => {
     getActiveWorkout.mockResolvedValue(WORKOUT)
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    renderPage()
 
     const button = await screen.findByRole('button', { name: /terminar entreno/i })
     await user.click(button)
@@ -207,7 +222,7 @@ describe('WorkoutPage', () => {
 
   it('vacía la cola al montar con red', async () => {
     getActiveWorkout.mockResolvedValue(WORKOUT)
-    render(<WorkoutPage />)
+    renderPage()
 
     await waitFor(() => expect(flushQueue).toHaveBeenCalled())
   })
@@ -216,7 +231,7 @@ describe('WorkoutPage', () => {
     setOnline(false)
     getActiveWorkout.mockResolvedValue(WORKOUT)
 
-    render(<WorkoutPage />)
+    renderPage()
     await screen.findByRole('button', { name: /terminar entreno/i })
 
     expect(flushQueue).not.toHaveBeenCalled()
@@ -225,7 +240,7 @@ describe('WorkoutPage', () => {
   it('no se queda cargando para siempre si IndexedDB falla', async () => {
     getActiveWorkout.mockRejectedValue(new Error('almacenamiento bloqueado'))
 
-    render(<WorkoutPage />)
+    renderPage()
 
     // Sin salida, la pantalla quedaría en "Cargando…" y no habría forma de
     // entrenar ni de saber por qué.
@@ -236,7 +251,7 @@ describe('WorkoutPage', () => {
   it('muestra el título también mientras carga', () => {
     getActiveWorkout.mockReturnValue(new Promise(() => {}))
 
-    render(<WorkoutPage />)
+    renderPage()
 
     expect(screen.getByRole('heading', { name: 'Entrenar' })).toBeInTheDocument()
     expect(screen.getByText(/cargando/i)).toBeInTheDocument()
@@ -245,7 +260,7 @@ describe('WorkoutPage', () => {
   it('permite cambiar de ejercicio', async () => {
     getActiveWorkout.mockResolvedValue(WORKOUT)
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    renderPage()
 
     await user.click(await screen.findByRole('button', { name: /sentadilla con barra/i }))
     expect(screen.getByLabelText(/peso/i)).toBeInTheDocument()
@@ -254,5 +269,50 @@ describe('WorkoutPage', () => {
 
     expect(screen.queryByLabelText(/peso/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/buscar ejercicio/i)).toBeInTheDocument()
+  })
+
+  it('arranca el entreno con la rutina que llegó por navegación', async () => {
+    const user = userEvent.setup()
+    renderPage({ routineId: 'r1' })
+
+    await user.click(await screen.findByRole('button', { name: /empezar esta rutina/i }))
+
+    expect(startWorkout).toHaveBeenCalledWith('user-1', 'r1')
+  })
+
+  it('ofrece los ejercicios de la rutina como acceso rápido', async () => {
+    getActiveWorkout.mockResolvedValue({ ...WORKOUT, routineId: 'r1' })
+    fetchRoutine.mockResolvedValue({
+      routine: { id: 'r1', ownerId: 'user-1', name: 'Pierna', description: null, createdAt: '', updatedAt: '' },
+      exercises: [
+        {
+          id: 'i1',
+          routineId: 'r1',
+          exerciseId: 'squat',
+          position: 0,
+          targetSets: 4,
+          targetReps: 8,
+          targetWeight: null,
+          notes: null,
+        },
+      ],
+    })
+
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Pierna' })).toBeInTheDocument()
+    // Con el nombre legible del catálogo, no el identificador.
+    expect(await screen.findByText('4 × 8')).toBeInTheDocument()
+  })
+
+  it('sigue funcionando como entreno libre si la rutina ya no existe', async () => {
+    getActiveWorkout.mockResolvedValue({ ...WORKOUT, routineId: 'r1' })
+    fetchRoutine.mockRejectedValue(new Error('sin red'))
+
+    renderPage()
+
+    // Sin rutina cargada queda el buscador, que es el comportamiento del
+    // entreno libre. Nada se rompe.
+    expect(await screen.findByLabelText(/buscar ejercicio/i)).toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { loadExercises } from '../exercises/exercise-cache'
 import {
@@ -19,6 +19,7 @@ type Editing = {
 
 export function RoutinesPage() {
   const { session } = useAuth()
+  const navigate = useNavigate()
 
   const [routines, setRoutines] = useState<Routine[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -190,6 +191,13 @@ export function RoutinesPage() {
               </span>
 
               <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/', { state: { routineId: routine.id } })}
+                  className="rounded-md bg-brand px-3 py-1 text-sm font-medium text-brand-content"
+                >
+                  Entrenar
+                </button>
                 <button
                   type="button"
                   onClick={() => onEdit(routine)}

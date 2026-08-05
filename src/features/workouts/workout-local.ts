@@ -26,11 +26,14 @@ async function enqueue(kind: PendingKind, payload: unknown): Promise<void> {
   })
 }
 
-export async function startWorkout(userId: string): Promise<Workout> {
+export async function startWorkout(
+  userId: string,
+  routineId: string | null = null,
+): Promise<Workout> {
   const workout: Workout = {
     id: newId(),
     userId,
-    routineId: null,
+    routineId,
     startedAt: new Date().toISOString(),
     endedAt: null,
     notes: null,
