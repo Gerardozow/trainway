@@ -93,9 +93,24 @@ export function LoginPage() {
           />
 
           {error && (
-            <p role="alert" className="text-sm text-danger">
-              {error}
-            </p>
+            <>
+              <p role="alert" className="text-sm text-danger">
+                {error}
+              </p>
+              {/* No depende del identificador: se muestra ante CUALQUIER
+                  fallo de credenciales, incluida una contraseña mal escrita,
+                  así que no delata si la cuenta existe ni si está
+                  confirmada. Existe porque enable_confirmations = true sin
+                  SMTP configurado (ver README.md) puede dejar una cuenta
+                  real, recién creada, sin poder confirmarse nunca -- y hoy
+                  esa cuenta recibe exactamente el mismo "Credenciales
+                  inválidas" que una contraseña mala, sin ninguna pista de
+                  qué hacer. Visualmente subordinada al error: texto más
+                  pequeño y del color neutro, no del color de error. */}
+              <p className="text-xs text-content-muted">
+                ¿Acabas de registrarte? Confirma tu correo antes de entrar.
+              </p>
+            </>
           )}
 
           <button type="submit" disabled={busy} className={PRIMARY}>

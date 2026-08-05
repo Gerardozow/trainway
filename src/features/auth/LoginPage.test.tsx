@@ -56,6 +56,45 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Credenciales inválidas')
   })
 
+  // "Credenciales inválidas" es el mismo mensaje para cualquier fallo de
+  // credenciales, incluida una cuenta real sin confirmar (config.toml tiene
+  // enable_confirmations = true y no hay SMTP configurado por defecto: ver
+  // README.md). Sin este mensaje, esa cuenta queda indistinguible de una
+  // contraseña mal escrita para quien la creó, sin pista de qué hacer. La
+  // pista no depende del identificador -- se muestra ante CUALQUIER fallo de
+  // credenciales -- así que no delata si la cuenta existe ni si está
+  // confirmada.
+  it('muestra una pista sobre confirmar el correo junto al error de credenciales', async () => {
+    signInWithIdentifier.mockResolvedValue({ error: 'Credenciales inválidas' })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    )
+
+    await user.type(screen.getByLabelText(/usuario o correo/i), 'gerardo_99')
+    await user.type(screen.getByLabelText(/contraseña/i), 'mala')
+    await user.click(screen.getByRole('button', { name: /entrar/i }))
+
+    await screen.findByRole('alert')
+    expect(
+      screen.getByText(/confirma tu correo antes de entrar/i),
+    ).toBeInTheDocument()
+  })
+
+  it('no muestra la pista de confirmación de correo antes de intentar entrar', async () => {
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    )
+
+    expect(
+      screen.queryByText(/confirma tu correo antes de entrar/i),
+    ).not.toBeInTheDocument()
+  })
+
   it('ofrece el magic link como segunda opción', async () => {
     const user = userEvent.setup()
     render(
