@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/lib/supabase/useAuth'
 import { createIntake } from '@/lib/supabase/queries'
@@ -55,6 +56,7 @@ const EMPTY: Answers = {
 export function Onboarding() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
   const [a, setA] = useState<Answers>(EMPTY)
   const [busy, setBusy] = useState(false)
@@ -103,6 +105,16 @@ export function Onboarding() {
 
       const plan = await generatePlan(intake.id)
       await translateExercises(plan.exercise_ids)
+
+      // Borrar, no invalidar.
+      //
+      // `invalidateQueries` marca como obsoleto pero CONSERVA el dato viejo, y
+      // en el primer render tras montar el refetch aún no ha arrancado: Hoy
+      // veía "no hay plan activo" de hace un minuto y rebotaba al cuestionario
+      // justo después de crear el plan. `removeQueries` deja la caché vacía,
+      // así que Hoy monta en estado de carga y espera al dato real.
+      queryClient.removeQueries()
+
       navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No pudimos generar tu plan.')

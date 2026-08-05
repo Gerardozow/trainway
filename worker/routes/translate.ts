@@ -1,6 +1,6 @@
 import { getExercise } from '@/lib/catalog'
 import type { ExerciseTranslation } from '@/lib/supabase/types'
-import { HttpError, json, type Env } from '../lib/auth'
+import { HttpError, json, requireConfig, type Env } from '../lib/auth'
 import { db } from '../lib/supabase'
 import { callStructured, createMinimax } from '../lib/minimax'
 import { TRANSLATE_SYSTEM_PROMPT } from '../lib/prompt'
@@ -18,6 +18,8 @@ type Body = { exercise_ids?: string[]; locale?: string }
  * role — `exercise_translations` no tiene política de escritura.
  */
 export async function handleTranslate(req: Request, env: Env, token: string): Promise<Response> {
+  requireConfig(env, ['MINIMAX_API_KEY', 'SUPABASE_SERVICE_ROLE_KEY'])
+
   const body = (await req.json().catch(() => ({}))) as Body
   const locale = body.locale ?? 'es'
   const requested = (body.exercise_ids ?? []).filter((id) => getExercise(id))

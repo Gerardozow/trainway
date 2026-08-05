@@ -17,6 +17,30 @@ export class HttpError extends Error {
 }
 
 /**
+ * Comprueba la configuración antes de usarla.
+ *
+ * Sin esto, un secret ausente o vacío se manifiesta como un error interno del
+ * SDK de turno — "Could not resolve authentication method" — que no dice nada
+ * sobre qué falta ni dónde arreglarlo. El nombre del binding sí.
+ *
+ * Nunca revela valores, solo si están y cuánto miden.
+ */
+export function requireConfig(env: Env, claves: (keyof Env)[]): void {
+  const faltan = claves.filter((k) => typeof env[k] !== 'string' || (env[k] as string).length === 0)
+  if (faltan.length === 0) return
+
+  const detalle = claves
+    .map((k) => `${String(k)}=${typeof env[k] === 'string' ? `${(env[k] as string).length} car.` : typeof env[k]}`)
+    .join(', ')
+
+  throw new HttpError(
+    `Falta configurar en el Worker: ${faltan.join(', ')}. ` +
+      `Cárgalo con "npx wrangler secret put ${String(faltan[0])}". [${detalle}]`,
+    500,
+  )
+}
+
+/**
  * Valida el JWT de Supabase contra su endpoint de usuario.
  *
  * Se verifica en el servidor en lugar de confiar en el `sub` del token: el

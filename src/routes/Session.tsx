@@ -11,8 +11,9 @@ import {
   startSession,
   completeSession,
 } from '@/lib/supabase/queries'
-import { db, enqueueSet, localSetsForSession, syncNow } from '@/lib/offline'
+import { db, enqueueSet, localSetsForSession, scheduleFlush, syncNow } from '@/lib/offline'
 import { targetFor } from '@/lib/useSessionTargets'
+import { CALIBRATION_NOTE } from '@/lib/progression'
 import { useWakeLock } from '@/lib/useWakeLock'
 import { ExerciseCard } from '@/components/ExerciseCard'
 import type { SetValues } from '@/components/SetRow'
@@ -134,6 +135,10 @@ export function Session() {
       note: null,
       loggedAt: new Date().toISOString(),
     })
+
+    // No esperar al sondeo de 30 s: en el gimnasio se marca una serie y se
+    // bloquea el teléfono.
+    scheduleFlush()
   }
 
   function updateSet(exerciseId: string, index: number, patch: Partial<SetValues>) {
@@ -230,6 +235,13 @@ export function Session() {
       </header>
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-3 px-3 py-3">
+        {Object.values(targets).some((t) => t?.note === CALIBRATION_NOTE) && (
+          <p className="rounded-xl border-l-2 border-volt bg-[var(--surface)] px-4 py-3 text-sm leading-snug">
+            <strong>Semana de calibración.</strong> Usa un peso donde las últimas 2 repeticiones
+            cuesten y anótalo. A partir de aquí Trainway ajusta la carga solo.
+          </p>
+        )}
+
         {data.day.is_deload && (
           <p className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm leading-snug">
             <strong>Semana de descarga.</strong> Menos series y menos peso a propósito. Es lo que

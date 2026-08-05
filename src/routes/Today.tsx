@@ -23,7 +23,7 @@ import { ExerciseImage } from '@/components/ExerciseImage'
 export function Today() {
   const { user } = useAuth()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['today', user?.id],
     enabled: Boolean(user),
     queryFn: async () => {
@@ -69,8 +69,19 @@ export function Today() {
     )
   }
 
-  // Sin plan activo, el sitio del usuario es el wizard.
-  if (data && !data.program) return <Navigate to="/empezar" replace />
+  // Sin plan activo, el sitio del usuario es el wizard. Pero solo cuando la
+  // respuesta es fresca: redirigir con datos en vuelo manda al cuestionario a
+  // quien acaba de crear su plan.
+  if (data && !data.program) {
+    if (isFetching) {
+      return (
+        <div className="grid flex-1 place-items-center">
+          <Spinner className="size-8" />
+        </div>
+      )
+    }
+    return <Navigate to="/empezar" replace />
+  }
 
   const { program, week, day, exercises = [], translations = {}, sessions = [], upcoming = [] } = data!
   const todaySession = day ? sessions.find((s) => s.program_day_id === day.id && s.performed_on === todayISO()) : null

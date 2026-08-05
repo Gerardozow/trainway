@@ -1,4 +1,4 @@
-import { json, type Env } from '../lib/auth'
+import { json, requireConfig, type Env } from '../lib/auth'
 import { callStructured, createMinimax } from '../lib/minimax'
 import { REVIEW_SYSTEM_PROMPT } from '../lib/prompt'
 import { REVIEW_TOOL_NAME, REVIEW_TOOL_SCHEMA } from '../lib/schemas'
@@ -23,6 +23,8 @@ export type BlockSummary = {
  * tendencia — adherencia, volumen por grupo, esfuerzo, qué subió y qué no.
  */
 export async function handleReview(req: Request, env: Env): Promise<Response> {
+  requireConfig(env, ['MINIMAX_API_KEY'])
+
   const summary = (await req.json().catch(() => ({}))) as Partial<BlockSummary>
 
   const volume = Object.entries(summary.volume_by_muscle ?? {})

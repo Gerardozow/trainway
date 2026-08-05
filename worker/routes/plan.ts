@@ -1,6 +1,6 @@
 import { filterCandidates } from '@/lib/catalog'
 import type { Intake, Program, ProgramDay } from '@/lib/supabase/types'
-import { HttpError, json, type Env } from '../lib/auth'
+import { HttpError, json, requireConfig, type Env } from '../lib/auth'
 import { db } from '../lib/supabase'
 import { callStructured, createMinimax, MINIMAX_MODEL } from '../lib/minimax'
 import { buildPlanPrompt, PLAN_SYSTEM_PROMPT } from '../lib/prompt'
@@ -22,6 +22,8 @@ type Body = { intake_id?: string; previous_review?: string | null }
  * Preferimos un ejercicio subóptimo a un plan roto.
  */
 export async function handlePlan(req: Request, env: Env, userId: string, token: string): Promise<Response> {
+  requireConfig(env, ['MINIMAX_API_KEY', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'])
+
   const body = (await req.json().catch(() => ({}))) as Body
   if (!body.intake_id) throw new HttpError('Falta intake_id.', 400)
 

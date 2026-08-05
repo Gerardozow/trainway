@@ -49,6 +49,25 @@ function schedule(): void {
   timer = setTimeout(() => void tick(), backoff)
 }
 
+let debounce: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Sube lo pendiente en cuanto se deja de escribir.
+ *
+ * El sondeo cada 30 s existe como red de seguridad, no como mecanismo
+ * principal: en el gimnasio la gente marca una serie y bloquea el teléfono. Los
+ * 2 s de espera agrupan la ráfaga de ediciones de una misma serie (peso, reps,
+ * check) en una sola subida.
+ */
+export function scheduleFlush(delayMs = 2000): void {
+  if (debounce) clearTimeout(debounce)
+  debounce = setTimeout(() => {
+    debounce = null
+    backoff = POLL_MS
+    void tick()
+  }, delayMs)
+}
+
 /** Arranca el sincronizador. Devuelve la función para detenerlo. */
 export function startSync(onChange?: Listener): () => void {
   if (onChange) listeners.push(onChange)

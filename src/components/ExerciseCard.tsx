@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronDown, Info } from 'lucide-react'
 import { getExercise, muscleEs } from '@/lib/catalog'
 import type { ExerciseTranslation, ProgramExercise, Units } from '@/lib/supabase/types'
-import type { Target } from '@/lib/progression'
+import { CALIBRATION_NOTE, type Target } from '@/lib/progression'
 import { ExerciseImage } from './ExerciseImage'
 import { SetRow, type SetValues } from './SetRow'
 import { cn, formatDuration, weightUnit } from '@/lib/utils'
@@ -73,7 +73,9 @@ export function ExerciseCard({
         </span>
       </header>
 
-      {target.note && (
+      {/* El aviso de calibración va una sola vez arriba de la sesión: repetirlo
+          en cada tarjeta lo convierte en ruido que nadie lee. */}
+      {target.note && target.note !== CALIBRATION_NOTE && (
         <p className="rounded-lg border-l-2 border-volt bg-[var(--surface-2)] px-3 py-2 text-sm leading-snug">
           {target.note}
         </p>
