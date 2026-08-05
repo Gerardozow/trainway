@@ -1,6 +1,7 @@
 import { createBrowserRouter, Link, Navigate, type RouteObject } from 'react-router'
 import { AppShell } from './AppShell'
 import { LoginPage } from '../features/auth/LoginPage'
+import { SignupPage } from '../features/auth/SignupPage'
 import { RequireAuth } from '../features/auth/RequireAuth'
 import { ThemeToggle } from '../features/theme/ThemeToggle'
 import { signOut } from '../features/auth/auth-repository'
@@ -54,9 +55,11 @@ function ProfilePage() {
   )
 }
 
-// Rutas públicas, accesibles sin sesión. Un plan posterior añade `/registro`
-// junto a `/login`; basta con agregar otra entrada a este arreglo.
-const publicRoutes: RouteObject[] = [{ path: '/login', element: <LoginPage /> }]
+// Rutas públicas, accesibles sin sesión.
+const publicRoutes: RouteObject[] = [
+  { path: '/login', element: <LoginPage /> },
+  { path: '/registro', element: <SignupPage /> },
+]
 
 export const routes: RouteObject[] = [
   ...publicRoutes,

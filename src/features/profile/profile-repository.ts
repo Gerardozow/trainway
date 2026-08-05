@@ -55,3 +55,11 @@ export async function setUsername(
 
   return { error: null }
 }
+
+export async function isUsernameAvailable(username: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('username_available', {
+    p_username: username,
+  })
+  if (error) return false
+  return data === true
+}

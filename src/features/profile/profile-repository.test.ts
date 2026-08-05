@@ -4,14 +4,18 @@ const select = vi.fn()
 const eq = vi.fn(() => ({ select }))
 const update = vi.fn(() => ({ eq }))
 const from = vi.fn((..._args: unknown[]) => ({ update }))
+const rpc = vi.fn()
 
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: (...args: unknown[]) => from(...args),
+    rpc: (...args: unknown[]) => rpc(...args),
   },
 }))
 
-const { validateUsername, setUsername } = await import('./profile-repository')
+const { validateUsername, setUsername, isUsernameAvailable } = await import(
+  './profile-repository'
+)
 
 describe('validateUsername', () => {
   it('acepta un username válido', () => {
@@ -84,5 +88,30 @@ describe('setUsername', () => {
     select.mockResolvedValue({ data: [], error: null })
     const result = await setUsername('user-1', 'gerardo_99')
     expect(result.error).not.toBeNull()
+  })
+})
+
+describe('isUsernameAvailable', () => {
+  beforeEach(() => {
+    rpc.mockReset()
+  })
+
+  it('devuelve true cuando el RPC reporta el username libre', async () => {
+    rpc.mockResolvedValue({ data: true, error: null })
+    const result = await isUsernameAvailable('gerardo_99')
+    expect(result).toBe(true)
+    expect(rpc).toHaveBeenCalledWith('username_available', { p_username: 'gerardo_99' })
+  })
+
+  it('devuelve false cuando el RPC reporta el username tomado', async () => {
+    rpc.mockResolvedValue({ data: false, error: null })
+    const result = await isUsernameAvailable('gerardo_99')
+    expect(result).toBe(false)
+  })
+
+  it('devuelve false ante un error del RPC en vez de propagarlo', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    const result = await isUsernameAvailable('gerardo_99')
+    expect(result).toBe(false)
   })
 })

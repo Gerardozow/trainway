@@ -36,7 +36,7 @@ describe('routes', () => {
       useAuthMock.mockReturnValue({ session: null, loading: false })
       renderAt(path)
 
-      expect(screen.getByText('Correo')).toBeInTheDocument()
+      expect(screen.getByLabelText(/usuario o correo/i)).toBeInTheDocument()
     },
   )
 
@@ -50,7 +50,7 @@ describe('routes', () => {
     renderAt(path)
 
     expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
-    expect(screen.queryByText('Correo')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/usuario o correo/i)).not.toBeInTheDocument()
   })
 
   it('redirige cualquier ruta desconocida a la raíz en vez de mostrar el error boundary por defecto', () => {
