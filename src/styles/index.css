@@ -77,15 +77,18 @@
     font-family: var(--font-sans);
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
-    overscroll-behavior-y: none;
   }
 
-  /* Nada de scroll horizontal, nunca. */
-  html,
-  body {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
+  /* Aquí NO va `overflow-x: hidden`.
+
+     Ponerlo en `html` impide que el desbordamiento se propague al viewport:
+     `html` pasa a ser el contenedor de scroll, con altura igual a la del
+     contenido, así que no tiene nada que desplazar y el gesto táctil deja de
+     funcionar. El scroll programático sigue yendo al viewport, de modo que el
+     fallo solo aparece con el dedo — justo donde se usa la app.
+
+     El desbordamiento horizontal se evita en la maquetación, y hay una prueba
+     end-to-end que lo comprueba. */
 
   /* Foco visible en todo, no solo donde nos acordemos. */
   :focus-visible {

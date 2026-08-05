@@ -87,3 +87,48 @@ test('el tema oscuro y el claro se aplican de verdad', async ({ page }) => {
   await page.reload()
   await expect(page.locator('html')).not.toHaveClass(/dark/)
 })
+
+test('la página se desplaza con el dedo, no solo por código', async ({ page }) => {
+  await page.goto('entrar')
+
+  // Contenido suficiente para que haya algo que desplazar.
+  await page.evaluate(() => {
+    const relleno = document.createElement('div')
+    relleno.style.height = '3000px'
+    document.body.append(relleno)
+  })
+
+  // Entrada táctil REAL vía CDP: el scroll lo mueve el compositor y no
+  // reacciona a TouchEvent fabricados con dispatchEvent.
+  //
+  // Esto existe porque `overflow-x: hidden` en `html` rompía justo esto: el
+  // scroll programático seguía funcionando y el gesto no, así que el fallo
+  // solo se veía con el dedo.
+  const cdp = await page.context().newCDPSession(page)
+  const punto = (y: number) => [{ x: 200, y, radiusX: 12, radiusY: 12, force: 1, id: 1 }]
+
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: punto(700) })
+  for (let y = 680; y >= 200; y -= 40) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: punto(y) })
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5000 }).toBeGreaterThan(100)
+})
+
+test('ni html ni body capturan el scroll del viewport', async ({ page }) => {
+  await page.goto('entrar')
+
+  const overflow = await page.evaluate(() => {
+    const de = getComputedStyle(document.documentElement)
+    const b = getComputedStyle(document.body)
+    return { htmlX: de.overflowX, htmlY: de.overflowY, bodyX: b.overflowX, bodyY: b.overflowY }
+  })
+
+  // `hidden` en un eje fuerza `auto` en el otro y convierte al elemento en
+  // contenedor de scroll, que es lo que rompía el gesto táctil.
+  expect(overflow.htmlX).toBe('visible')
+  expect(overflow.htmlY).toBe('visible')
+  expect(overflow.bodyX).toBe('visible')
+  expect(overflow.bodyY).toBe('visible')
+})
