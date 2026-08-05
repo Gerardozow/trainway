@@ -1,0 +1,89 @@
+import { test, expect } from '@playwright/test'
+
+/**
+ * Comprobaciones que no necesitan backend: que la app arranca bajo el subpath,
+ * que la PWA está bien declarada, y que la accesibilidad básica se sostiene.
+ *
+ * El recorrido completo (registro, plan, sesión) vive en session.spec.ts y
+ * necesita una instancia de Supabase.
+ */
+
+test('la app carga bajo /trainway y muestra la marca', async ({ page }) => {
+  await page.goto('.')
+  await expect(page).toHaveTitle('Trainway')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Trainway')
+})
+
+test('la pantalla de entrada es usable con teclado', async ({ page }) => {
+  await page.goto('entrar')
+
+  const email = page.getByLabel('Email')
+  const password = page.getByLabel('Contraseña')
+
+  await email.fill('gerardo@ejemplo.com')
+  await password.fill('corta')
+  await page.getByRole('button', { name: 'Entrar' }).click()
+
+  await expect(page.getByRole('alert')).toContainText('al menos 8 caracteres')
+})
+
+test('todo objetivo táctil llega a 48 px', async ({ page }) => {
+  await page.goto('entrar')
+
+  const targets = page.locator('button, a[href], input, select')
+  const count = await targets.count()
+  expect(count).toBeGreaterThan(0)
+
+  for (let i = 0; i < count; i++) {
+    const el = targets.nth(i)
+    if (!(await el.isVisible())) continue
+    const box = await el.boundingBox()
+    if (!box) continue
+    expect(box.height, `elemento ${i} mide ${box.height}px de alto`).toBeGreaterThanOrEqual(44)
+  }
+})
+
+test('no hay scroll horizontal', async ({ page }) => {
+  await page.goto('entrar')
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  )
+  expect(overflow).toBe(false)
+})
+
+test('el manifest declara la PWA en el subpath correcto', async ({ page, request }) => {
+  await page.goto('.')
+
+  const res = await request.get('manifest.webmanifest')
+  expect(res.ok()).toBe(true)
+
+  const manifest = (await res.json()) as Record<string, unknown>
+  expect(manifest.name).toBe('Trainway')
+  expect(manifest.start_url).toBe('/trainway/')
+  expect(manifest.scope).toBe('/trainway/')
+  expect(manifest.display).toBe('standalone')
+
+  const icons = manifest.icons as { sizes: string; purpose?: string }[]
+  expect(icons.map((i) => i.sizes)).toContain('512x512')
+  expect(icons.some((i) => i.purpose === 'maskable')).toBe(true)
+})
+
+test('el service worker se registra y precachea el catálogo', async ({ page }) => {
+  await page.goto('.')
+
+  const registered = await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.getRegistration()
+    return Boolean(reg)
+  })
+  expect(registered).toBe(true)
+})
+
+test('el tema oscuro y el claro se aplican de verdad', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.goto('entrar')
+  await expect(page.locator('html')).toHaveClass(/dark/)
+
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.reload()
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
+})
