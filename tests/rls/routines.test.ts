@@ -222,4 +222,95 @@ describe('RLS de routines y routine_exercises', () => {
     expect(data?.id).toBe(workoutId)
     expect(data?.routine_id).toBeNull()
   })
+
+  it('guarda y reordena los ejercicios en una sola transacción', async () => {
+    const routineId = randomUUID()
+    const a = randomUUID()
+    const b = randomUUID()
+
+    await alice.client
+      .from('routines')
+      .insert({ id: routineId, owner_id: alice.id, name: 'Reordenar' })
+
+    const items = [
+      { id: a, exercise_id: exerciseId, position: 0, target_sets: 4, target_reps: 8 },
+      { id: b, exercise_id: exerciseId, position: 1, target_sets: 3, target_reps: 12 },
+    ]
+
+    const first = await alice.client.rpc('save_routine_exercises', {
+      p_routine_id: routineId,
+      p_items: items,
+    })
+    expect(first.error).toBeNull()
+
+    // Intercambiarlos: sin la función, dos update sueltos chocarían contra el
+    // índice único de posición a mitad de camino.
+    const swapped = [
+      { ...items[0], position: 1 },
+      { ...items[1], position: 0 },
+    ]
+    const second = await alice.client.rpc('save_routine_exercises', {
+      p_routine_id: routineId,
+      p_items: swapped,
+    })
+    expect(second.error).toBeNull()
+
+    const { data } = await alice.client
+      .from('routine_exercises')
+      .select('id, position')
+      .eq('routine_id', routineId)
+      .order('position')
+
+    expect(data?.map((row) => row.id)).toEqual([b, a])
+  })
+
+  it('quita los ejercicios que ya no están en la lista', async () => {
+    const routineId = randomUUID()
+    const a = randomUUID()
+    const b = randomUUID()
+
+    await alice.client
+      .from('routines')
+      .insert({ id: routineId, owner_id: alice.id, name: 'Quitar' })
+
+    await alice.client.rpc('save_routine_exercises', {
+      p_routine_id: routineId,
+      p_items: [
+        { id: a, exercise_id: exerciseId, position: 0 },
+        { id: b, exercise_id: exerciseId, position: 1 },
+      ],
+    })
+
+    await alice.client.rpc('save_routine_exercises', {
+      p_routine_id: routineId,
+      p_items: [{ id: b, exercise_id: exerciseId, position: 0 }],
+    })
+
+    const { data } = await alice.client
+      .from('routine_exercises')
+      .select('id')
+      .eq('routine_id', routineId)
+
+    expect(data?.map((row) => row.id)).toEqual([b])
+  })
+
+  it('impide a Bob guardar ejercicios en la rutina de Alice', async () => {
+    const { error } = await bob.client.rpc('save_routine_exercises', {
+      p_routine_id: aliceRoutineId,
+      p_items: [{ id: randomUUID(), exercise_id: exerciseId, position: 0 }],
+    })
+
+    // Falla ruidosamente en vez de no hacer nada en silencio: si no dijera
+    // nada, el cliente creería que guardó.
+    expect(error?.code).toBe('42501')
+  })
+
+  it('niega la función a un visitante sin sesión', async () => {
+    const { error } = await anonClient().rpc('save_routine_exercises', {
+      p_routine_id: aliceRoutineId,
+      p_items: [],
+    })
+
+    expect(error).not.toBeNull()
+  })
 })
