@@ -17,11 +17,23 @@ pnpm supabase status   # copia las claves al paso siguiente
 cp .env.example .env.local
 # llenar VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY
 pnpm db:reset
+pnpm seed:exercises   # tarda varios minutos la primera vez
 pnpm dev
 ```
 
 Los correos de acceso no salen a internet en local: se leen en el buzón de
 pruebas en <http://127.0.0.1:54324>.
+
+## Catálogo de ejercicios
+
+`pnpm seed:exercises` puebla la tabla `exercises` con 873 ejercicios y sube sus
+1746 imágenes a Supabase Storage. La primera vez tarda varios minutos; después
+es idempotente y solo reintenta lo que falte, así que se puede volver a correr
+sin miedo.
+
+El catálogo viene de **Free Exercise DB**
+(<https://github.com/yuhonas/free-exercise-db>), de dominio público bajo la
+Unlicense. La licencia no exige atribución; se pone igual.
 
 ## Comandos
 
@@ -36,6 +48,7 @@ pruebas en <http://127.0.0.1:54324>.
 | `pnpm db:start` | Levanta Supabase local (Docker) |
 | `pnpm db:stop` | Detiene Supabase local |
 | `pnpm db:reset` | Recrea la base local y aplica las migraciones |
+| `pnpm seed:exercises` | Puebla el catálogo de ejercicios y sube sus imágenes |
 
 ## Despliegue de la Edge Function
 

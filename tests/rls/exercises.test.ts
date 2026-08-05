@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { adminClient, anonClient, createTestUser } from './client'
 
 describe('RLS de exercises', () => {
@@ -23,6 +23,15 @@ describe('RLS de exercises', () => {
     ])
     if (error) throw error
   }, 30_000)
+
+  // El ejercicio global de prueba sobrevivía a la corrida y aparecía en el
+  // catálogo real de la pantalla, mezclado con los 873 de Free Exercise DB.
+  afterAll(async () => {
+    await adminClient()
+      .from('exercises')
+      .delete()
+      .in('id', [globalId, aliceExerciseId])
+  })
 
   it('deja leer el catálogo global a un visitante sin sesión', async () => {
     const { data, error } = await anonClient()
