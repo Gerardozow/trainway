@@ -4,12 +4,31 @@ import { LoginPage } from '../features/auth/LoginPage'
 import { SignupPage } from '../features/auth/SignupPage'
 import { RequireAuth } from '../features/auth/RequireAuth'
 import { ProfilePage } from '../features/profile/ProfilePage'
+import { ExercisesPage } from '../features/exercises/ExercisesPage'
 
 function Placeholder({ title }: { title: string }) {
   return (
     <section className="p-6">
       <h1 className="text-2xl font-bold text-content">{title}</h1>
       <p className="mt-2 text-content-muted">Próximamente.</p>
+    </section>
+  )
+}
+
+// Rutinas todavía no existe, pero el catálogo de ejercicios sí, y sin un
+// enlace no habría forma de llegar a él desde la interfaz. El enlace se queda
+// cuando Rutinas se construya: buscar un ejercicio es parte de armar una rutina.
+function RoutinesPlaceholder() {
+  return (
+    <section className="p-6">
+      <h1 className="text-2xl font-bold text-content">Rutinas</h1>
+      <p className="mt-2 text-content-muted">Próximamente.</p>
+      <Link
+        to="/ejercicios"
+        className="mt-6 inline-block rounded-lg bg-brand px-4 py-3 font-medium text-brand-content"
+      >
+        Ver ejercicios
+      </Link>
     </section>
   )
 }
@@ -53,7 +72,8 @@ export const routes: RouteObject[] = [
     errorElement: <RouteError />,
     children: [
       { index: true, element: <Placeholder title="Entrenar" /> },
-      { path: 'rutinas', element: <Placeholder title="Rutinas" /> },
+      { path: 'rutinas', element: <RoutinesPlaceholder /> },
+      { path: 'ejercicios', element: <ExercisesPage /> },
       { path: 'progreso', element: <Placeholder title="Progreso" /> },
       { path: 'perfil', element: <ProfilePage /> },
     ],

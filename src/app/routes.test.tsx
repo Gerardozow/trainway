@@ -30,7 +30,7 @@ describe('routes', () => {
     useAuthMock.mockReset()
   })
 
-  it.each(['/', '/rutinas', '/progreso', '/perfil'])(
+  it.each(['/', '/rutinas', '/ejercicios', '/progreso', '/perfil'])(
     'protege %s con RequireAuth: sin sesión redirige a login en vez de mostrar la pantalla',
     (path) => {
       useAuthMock.mockReturnValue({ session: null, loading: false })
@@ -43,6 +43,7 @@ describe('routes', () => {
   it.each([
     ['/', 'Entrenar'],
     ['/rutinas', 'Rutinas'],
+    ['/ejercicios', 'Ejercicios'],
     ['/progreso', 'Progreso'],
     ['/perfil', 'Perfil'],
   ])('deja pasar %s cuando hay sesión', (path, heading) => {
