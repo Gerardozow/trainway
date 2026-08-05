@@ -1,42 +1,122 @@
-@import "tailwindcss" source(none);
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/inter';
+@import 'tailwindcss' source(none);
+
 @source "../index.html";
 @source "./**/*.{ts,tsx}";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/**
+ * El tema oscuro es el de referencia: la app se usa en un gimnasio, con el
+ * teléfono en la mano y poca luz. El claro se deriva de él conservando las
+ * mismas relaciones — no es otro tema, es el mismo con cuidado.
+ *
+ * Los colores de categoría (fuerza, cardio) hacen un trabajo distinto del
+ * color de marca. La marca dice "esto es Trainway y esta es la acción
+ * principal"; la categoría dice "esto es fuerza y aquello cardio". Por eso
+ * conviven sin competir: el amarillo solo aparece en botones de acción.
+ *
+ * Contrastes verificados contra su superficie, tema claro / oscuro:
+ *   content        17.2:1 / 17.4:1
+ *   content-muted   5.6:1 /  7.4:1
+ *   strength        5.7:1 /  5.8:1
+ *   cardio          4.5:1 /  6.1:1
+ *   ok              4.9:1 / 10.0:1
+ *   danger          6.3:1 /  6.8:1
+ *   brand-content sobre brand: 11.2:1 en ambos
+ */
 @theme {
-  --color-surface: #ffffff;
-  --color-surface-raised: #f4f4f5;
-  --color-border: #e4e4e7;
-  --color-content: #18181b;
-  --color-content-muted: #52525b;
+  --font-display: 'Bricolage Grotesque Variable', system-ui, sans-serif;
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+
+  --color-surface: #fbfbfa;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #f1f2f4;
+  --color-border: #e2e5ea;
+
+  --color-content: #14181d;
+  --color-content-muted: #5c6673;
+
   --color-brand: #ffc603;
   --color-brand-content: #18181b;
-  /* #b91c1c sobre --color-surface (#ffffff) = 6.47:1 */
+
+  --color-strength: #5b48e8;
+  --color-strength-soft: #5b48e81f;
+  --color-cardio: #d33f16;
+  --color-cardio-soft: #d33f161f;
+
+  --color-ok: #0f7f49;
   --color-danger: #b91c1c;
-  /* #ffffff sobre --color-danger (#b91c1c) = 6.47:1 */
+  --color-danger-soft: #b91c1c14;
   --color-danger-content: #ffffff;
 }
 
 .dark {
-  --color-surface: #09090b;
-  --color-surface-raised: #18181b;
-  --color-border: #27272a;
-  --color-content: #fafafa;
-  --color-content-muted: #a1a1aa;
+  /* Las superficies del prototipo: casi negro azulado, no gris neutro. */
+  --color-surface: #0f1216;
+  --color-surface-raised: #161b22;
+  --color-surface-sunken: #1e242d;
+  --color-border: #2a313b;
+
+  --color-content: #f5f6f7;
+  --color-content-muted: #9aa3ae;
+
   --color-brand: #ffc603;
   --color-brand-content: #18181b;
-  /* #f87171 sobre --color-surface (#09090b) = 7.19:1 */
+
+  /* En oscuro los acentos suben de luminosidad para mantener el contraste. */
+  --color-strength: #8b7dff;
+  --color-strength-soft: #8b7dff26;
+  --color-cardio: #ff5c35;
+  --color-cardio-soft: #ff5c3526;
+
+  --color-ok: #3dd68c;
   --color-danger: #f87171;
-  /* #18181b sobre --color-danger (#f87171) = 6.40:1 */
+  --color-danger-soft: #f8717126;
   --color-danger-content: #18181b;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
 }
 
 body {
   background-color: var(--color-surface);
   color: var(--color-content);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * Titulares apretados: line-height casi 1 y tracking negativo es lo que le da
+ * al prototipo su aire de cartel en vez de documento.
+ */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+/**
+ * Cifras tabulares en los campos numéricos del registro de series: sin esto,
+ * escribir un 1 hace saltar la caja porque el uno es más angosto.
+ */
+input[inputmode='numeric'],
+input[inputmode='decimal'] {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
