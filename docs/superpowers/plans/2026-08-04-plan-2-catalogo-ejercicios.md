@@ -39,7 +39,7 @@ Planes 1 y 1b completos y fusionados en `main`:
 ```
 supabase/
   migrations/
-    0003_exercises.sql          # tabla exercises, RLS, grants, bucket de Storage
+    0004_exercises.sql          # tabla exercises, RLS, grants, bucket de Storage
 scripts/
   seed-exercises.ts             # descarga el dataset, inserta filas, sube imágenes
 src/
@@ -66,7 +66,7 @@ Regla de decomposición: `searchExercises.ts` y `exercise-types.ts` no importan 
 ### Task 1: Tabla de ejercicios con RLS
 
 **Files:**
-- Create: `supabase/migrations/0003_exercises.sql`, `tests/rls/exercises.test.ts`
+- Create: `supabase/migrations/0004_exercises.sql`, `tests/rls/exercises.test.ts`
 
 **Interfaces:**
 - Consumes: `public.profiles` y el patrón de grants explícitos de `0001_profiles.sql`.
@@ -74,7 +74,7 @@ Regla de decomposición: `searchExercises.ts` y `exercise-types.ts` no importan 
 
 - [ ] **Step 1: Escribir la migración**
 
-Crear `supabase/migrations/0003_exercises.sql`:
+Crear `supabase/migrations/0004_exercises.sql`:
 
 ```sql
 create table public.exercises (
@@ -136,7 +136,7 @@ Nota sobre las políticas de escritura: exigen `owner_id is not null` además de
 ```bash
 pnpm db:reset
 ```
-Esperado: aplica `0001`, `0002` y `0003` sin errores.
+Esperado: aplica `0001` a `0004` sin errores.
 
 - [ ] **Step 3: Escribir las pruebas que fallan**
 
@@ -292,7 +292,7 @@ Esperado: PASAN las 23.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/0003_exercises.sql tests/rls/exercises.test.ts
+git add supabase/migrations/0004_exercises.sql tests/rls/exercises.test.ts
 git commit -m "feat: add exercises table with RLS and public image bucket"
 ```
 

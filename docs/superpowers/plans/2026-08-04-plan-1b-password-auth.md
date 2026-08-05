@@ -1484,6 +1484,172 @@ git commit -m "feat: add password signup and dual-identifier login"
 
 ---
 
+---
+
+### Task 4: Que el username del registro sí se guarde
+
+**Files:**
+- Create: `supabase/migrations/0005_username_from_signup.sql`
+- Modify: `src/features/auth/auth-repository.ts`, `src/features/auth/SignupPage.tsx`
+- Test: `tests/rls/username-from-signup.test.ts`, `src/features/auth/SignupPage.test.tsx`
+
+**Por qué existe esta tarea.** Con `enable_confirmations = true`, `signUp` no devuelve sesión: el cliente sigue siendo `anon`, y `anon` no tiene permiso de UPDATE sobre `profiles`. Así que el `setUsername` que la Task 3 hace tras el alta **falla siempre**, en todos los registros, no solo en una carrera rara. El usuario escribe un username, se valida delante de sus ojos, y se tira. Luego `UsernameOnboarding` se lo vuelve a pedir con el campo en blanco.
+
+**La solución.** El username viaja en los metadatos de `signUp` y lo escribe el trigger `handle_new_user`, que es `security definer` y corre como dueño de la tabla — no necesita sesión ni permisos del cliente. Si el username ya está tomado, el trigger inserta el perfil con `username` nulo en lugar de abortar el alta, y `UsernameOnboarding` lo recoge. Una cuenta nunca se pierde por una colisión de nombre.
+
+**Interfaces:**
+- Consumes: `public.profiles`, `public.handle_new_user` de `0001_profiles.sql`; `isUsernameAvailable` de `profile-repository.ts`, que hasta ahora estaba exportada sin usar.
+- Produces: `handle_new_user` que lee `raw_user_meta_data ->> 'username'`.
+
+- [ ] **Step 1: Escribir la migración**
+
+Crear `supabase/migrations/0005_username_from_signup.sql`:
+
+```sql
+-- El cliente no puede escribir el username al registrarse: sin confirmar el
+-- correo no hay sesión, y anon no tiene UPDATE sobre profiles. Así que lo
+-- escribe el trigger, que corre como dueño. Si el nombre ya está tomado, el
+-- perfil nace sin username en vez de abortar el alta: perder una cuenta por
+-- una colisión de nombre sería mucho peor que pedir el nombre otra vez.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  desired text := new.raw_user_meta_data ->> 'username';
+  display text := new.raw_user_meta_data ->> 'full_name';
+  avatar text := new.raw_user_meta_data ->> 'avatar_url';
+begin
+  if desired is null or desired !~ '^[a-z0-9_]{3,20}$' then
+    desired := null;
+  end if;
+
+  begin
+    insert into public.profiles (id, username, display_name, avatar_url)
+    values (new.id, desired, display, avatar);
+  exception when unique_violation then
+    -- Otro registro se quedó con ese nombre entre la comprobación y ahora.
+    insert into public.profiles (id, username, display_name, avatar_url)
+    values (new.id, null, display, avatar);
+  end;
+
+  return new;
+end;
+$$;
+```
+
+- [ ] **Step 2: Aplicar y comprobar**
+
+```bash
+pnpm db:reset
+```
+Esperado: aplica de `0001` a `0005` sin errores.
+
+- [ ] **Step 3: Escribir las pruebas que fallan**
+
+Crear `tests/rls/username-from-signup.test.ts`. Usan `adminClient().auth.admin.createUser` con metadatos, que es el mismo camino que recorre un alta real:
+
+```typescript
+// @vitest-environment node
+import { describe, it, expect } from 'vitest'
+import { adminClient } from './client'
+
+async function signUpWith(username: string | null, suffix: string) {
+  const admin = adminClient()
+  const { data, error } = await admin.auth.admin.createUser({
+    email: `signup-${suffix}@trainway.test`,
+    password: 'contrasena-de-prueba-8',
+    email_confirm: true,
+    user_metadata: username === null ? {} : { username },
+  })
+  if (error) throw error
+
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('username')
+    .eq('id', data.user!.id)
+    .single()
+
+  return profile?.username ?? null
+}
+
+describe('username desde los metadatos del alta', () => {
+  it('guarda el username que viene en los metadatos', async () => {
+    const stamp = Date.now().toString().slice(-6)
+    const username = `meta_${stamp}`
+    expect(await signUpWith(username, `a${stamp}`)).toBe(username)
+  }, 30_000)
+
+  it('deja el perfil sin username cuando no viene ninguno', async () => {
+    const stamp = Date.now().toString().slice(-6)
+    expect(await signUpWith(null, `b${stamp}`)).toBeNull()
+  }, 30_000)
+
+  it('ignora un username con formato inválido en vez de abortar el alta', async () => {
+    const stamp = Date.now().toString().slice(-6)
+    expect(await signUpWith('MAYUSCULAS Y ESPACIOS', `c${stamp}`)).toBeNull()
+  }, 30_000)
+
+  it('crea la cuenta igual cuando el username ya está tomado', async () => {
+    const stamp = Date.now().toString().slice(-6)
+    const username = `dup_${stamp}`
+
+    expect(await signUpWith(username, `d${stamp}`)).toBe(username)
+    // El segundo pierde el nombre pero conserva la cuenta.
+    expect(await signUpWith(username, `e${stamp}`)).toBeNull()
+  }, 30_000)
+})
+```
+
+- [ ] **Step 4: Ejecutar para ver fallar**
+
+```bash
+pnpm test:rls
+```
+Esperado: FALLAN las pruebas que esperan el username guardado, porque el trigger todavía no lo lee. Aplicar la migración del Step 1 y repetir; esperado: PASAN las 4 nuevas más las existentes.
+
+- [ ] **Step 5: Pasar el username en el alta**
+
+En `src/features/auth/auth-repository.ts`, dentro de `signUpWithPassword`, cambiar la llamada a `signUp` para incluir los metadatos, y **eliminar el `setUsername` posterior**, que no puede funcionar y solo confunde a quien lea el código:
+
+```typescript
+const { error } = await supabase.auth.signUp({
+  email,
+  password,
+  // El username lo escribe el trigger handle_new_user: aquí todavía no hay
+  // sesión, así que el cliente no tiene permiso para tocar profiles.
+  options: { data: { username } },
+})
+```
+
+- [ ] **Step 6: Comprobar disponibilidad antes de enviar**
+
+`isUsernameAvailable` está exportada desde `profile-repository.ts` y no se usa. Usarla en `SignupPage`: al enviar, antes de llamar a `signUpWithPassword`, comprobar el username y mostrar `Ese username ya está tomado` si no está libre, sin crear la cuenta.
+
+No elimina la carrera — entre la comprobación y el alta alguien puede ganarla — pero convierte el caso común en un mensaje claro en lugar de un perfil sin nombre. El trigger sigue cubriendo la carrera.
+
+- [ ] **Step 7: Ampliar la prueba de la pantalla**
+
+En `src/features/auth/SignupPage.test.tsx`, añadir dos casos: que un username tomado muestre el mensaje y **no** llame a `signUpWithPassword`, y que uno libre sí lo llame.
+
+- [ ] **Step 8: Verificar el flujo real**
+
+Con el stack levantado y la función servida, registrar una cuenta con username, confirmar el correo desde `http://127.0.0.1:54324`, entrar, y comprobar que **no** aparece la pantalla de onboarding — el username ya está puesto. Después registrar otra cuenta con el mismo username y comprobar que la pantalla lo rechaza antes de enviar.
+
+- [ ] **Step 9: Verificación completa y commit**
+
+```bash
+pnpm exec tsc -b && pnpm build && pnpm lint && pnpm test && pnpm test:rls
+```
+
+```bash
+git add supabase/migrations/0005_username_from_signup.sql src/features/auth tests/rls/username-from-signup.test.ts
+git commit -m "feat: persist the signup username via the new-user trigger"
+```
+
+
 ## Al terminar este plan
 
 El usuario se registra con correo, contraseña y username, y entra escribiendo cualquiera de los dos identificadores. Un atacante que pruebe usernames al azar no puede distinguir "no existe" de "contraseña incorrecta", ni por el mensaje ni por el tiempo de respuesta, y ningún correo ajeno llega jamás al navegador. El magic link sigue disponible como segunda opción.
