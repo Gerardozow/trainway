@@ -17,7 +17,9 @@
     "db:stop": "supabase stop",
     "seed:exercises": "vite-node scripts/seed-exercises.ts",
     "db:reset:full": "supabase db reset && vite-node scripts/seed-exercises.ts",
-    "seed:demo": "vite-node scripts/seed-demo.ts"
+    "seed:demo": "vite-node scripts/seed-demo.ts",
+    "dev:functions": "supabase functions serve sign-in --no-verify-jwt",
+    "dev:all": "concurrently -n vite,funcion -c cyan,yellow \"pnpm dev\" \"pnpm dev:functions\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",
@@ -37,6 +39,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "@vitest/coverage-v8": "^4.1.10",
+    "concurrently": "^10.0.4",
     "deno": "^2.9.4",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",

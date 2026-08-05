@@ -41,7 +41,9 @@ Unlicense. La licencia no exige atribución; se pone igual.
 
 | Comando | Qué hace |
 |---|---|
-| `pnpm dev` | Servidor de desarrollo |
+| `pnpm dev:all` | El sitio y la función de acceso juntos — lo normal en desarrollo |
+| `pnpm dev` | Solo el sitio; entrar con contraseña no funcionará |
+| `pnpm dev:functions` | Solo la Edge Function de acceso |
 | `pnpm build` | Compilación de producción |
 | `pnpm lint` | Revisa el código con oxlint |
 | `pnpm test` | Pruebas unitarias (proyecto `unit`, jsdom); no necesita Docker |

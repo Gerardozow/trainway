@@ -15,10 +15,16 @@ cp .env.example .env.local    # y llénalo con esas claves
 pnpm db:reset
 pnpm seed:exercises           # 873 ejercicios + 1746 imágenes, tarda unos minutos
 pnpm seed:demo                # cuenta de demostración con datos
-pnpm dev
+pnpm dev:all                  # el sitio Y la función de acceso, juntos
 ```
 
-Abre la URL que imprime `pnpm dev` (normalmente <http://localhost:5173>).
+Abre la URL que imprime (normalmente <http://localhost:5173>).
+
+> **`pnpm dev:all`, no `pnpm dev`.** Entrar con contraseña pasa por una Edge
+> Function que corre aparte del sitio. Con solo `pnpm dev` el sitio carga, pero
+> al intentar entrar sale *"Servicio no disponible, intenta de nuevo"* — que es
+> el mensaje correcto: no es que tu contraseña esté mal, es que falta esa pieza.
+> Si prefieres dos terminales, son `pnpm dev` y `pnpm dev:functions`.
 
 **Entra con:**
 
@@ -80,6 +86,9 @@ queda con las viejas:
 ```bash
 docker restart supabase_kong_trainway
 ```
+
+**Al entrar sale "Servicio no disponible, intenta de nuevo".** Falta la Edge
+Function. Usa `pnpm dev:all`, o levántala aparte con `pnpm dev:functions`.
 
 **El catálogo aparece vacío.** `pnpm db:reset` borra los ejercicios, porque la
 siembra no es una migración. Usa `pnpm db:reset:full`, que hace las dos cosas, o
