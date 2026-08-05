@@ -24,18 +24,26 @@ export function LoginPage() {
     setBusy(true)
     setError(null)
 
-    const result = await signInWithIdentifier(identifier, password)
-    setBusy(false)
-    if (result.error) {
-      setError(result.error)
-      return
+    try {
+      const result = await signInWithIdentifier(identifier, password)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      // /login es una ruta pública sin guardia propia: a diferencia del
+      // magic link y de Google, que vuelven a la app por una URL de
+      // redirección, este camino nunca sale de /login. Sin esta navegación
+      // explícita, el login por contraseña deja una sesión válida pero a
+      // quien entró viendo el mismo formulario, como si no hubiera pasado
+      // nada.
+      navigate('/')
+    } finally {
+      // Todo fallo esperado vuelve como valor (`result.error`), nunca como
+      // excepción. Pero si algo sí revienta (un error inesperado en
+      // signInWithIdentifier), el botón no puede quedar deshabilitado para
+      // siempre sin mensaje ni forma de reintentar salvo recargar.
+      setBusy(false)
     }
-    // /login es una ruta pública sin guardia propia: a diferencia del magic
-    // link y de Google, que vuelven a la app por una URL de redirección,
-    // este camino nunca sale de /login. Sin esta navegación explícita, el
-    // login por contraseña deja una sesión válida pero a quien entró viendo
-    // el mismo formulario, como si no hubiera pasado nada.
-    navigate('/')
   }
 
   async function onMagicSubmit(event: FormEvent) {
@@ -43,13 +51,16 @@ export function LoginPage() {
     setBusy(true)
     setError(null)
 
-    const result = await signInWithEmail(email)
-    setBusy(false)
-    if (result.error) {
-      setError(result.error)
-      return
+    try {
+      const result = await signInWithEmail(email)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      setLinkSent(true)
+    } finally {
+      setBusy(false)
     }
-    setLinkSent(true)
   }
 
   return (
@@ -97,6 +108,8 @@ export function LoginPage() {
             onClick={() => {
               setMode('magic')
               setError(null)
+              setIdentifier('')
+              setPassword('')
             }}
             className={SECONDARY}
           >

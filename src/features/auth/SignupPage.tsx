@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import { signUpWithPassword } from './auth-repository'
 
 export function SignupPage() {
@@ -14,14 +15,19 @@ export function SignupPage() {
     setSaving(true)
     setError(null)
 
-    const result = await signUpWithPassword(email, password, username)
-    setSaving(false)
-
-    if (result.error) {
-      setError(result.error)
-      return
+    try {
+      const result = await signUpWithPassword(email, password, username)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      setDone(true)
+    } finally {
+      // Todo fallo esperado vuelve como valor, nunca como excepción. Si
+      // algo sí revienta, el botón no puede quedar deshabilitado para
+      // siempre sin mensaje ni forma de reintentar salvo recargar.
+      setSaving(false)
     }
-    setDone(true)
   }
 
   if (done) {
@@ -31,6 +37,15 @@ export function SignupPage() {
         <p className="max-w-sm text-center text-content-muted">
           Revisa tu correo para confirmar la cuenta y ya puedes entrar.
         </p>
+        {/* Pantalla terminal en una PWA instalada: sin barra de direcciones
+            y sin nav (las rutas públicas quedan fuera de AppShell), sin este
+            enlace no hay forma de llegar a /login salvo forzar el cierre. */}
+        <Link
+          to="/login"
+          className="rounded-lg bg-brand px-4 py-3 font-medium text-brand-content"
+        >
+          Ir a iniciar sesión
+        </Link>
       </main>
     )
   }

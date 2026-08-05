@@ -53,6 +53,13 @@ describe('routes', () => {
     expect(screen.queryByLabelText(/usuario o correo/i)).not.toBeInTheDocument()
   })
 
+  it('deja /registro alcanzable sin sesión', () => {
+    useAuthMock.mockReturnValue({ session: null, loading: false })
+    renderAt('/registro')
+
+    expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeInTheDocument()
+  })
+
   it('redirige cualquier ruta desconocida a la raíz en vez de mostrar el error boundary por defecto', () => {
     useAuthMock.mockReturnValue({ session: fakeSession, loading: false })
     renderAt('/esto-no-existe/ni-esto')

@@ -42,7 +42,7 @@ export async function signInWithIdentifier(
 
   let payload: {
     session?: { access_token: string; refresh_token: string }
-    error?: string
+    error?: unknown
   }
   let status: number
   try {
@@ -58,16 +58,33 @@ export async function signInWithIdentifier(
       },
     )
     status = response.status
-    payload = await response.json()
+    try {
+      payload = await response.json()
+    } catch {
+      // Un cuerpo no-JSON es una página de error del gateway (502/504/etc,
+      // HTML o texto plano), no la respuesta de nuestra función. Se
+      // clasifica por estado como cualquier otro fallo más abajo, en vez de
+      // culpar a la conexión de quien intenta entrar.
+      payload = {}
+    }
+
     if (!response.ok || !payload.session) {
-      // La función distingue 503 (el servicio falló) de 400 (credenciales
-      // rechazadas): colapsar ambos de vuelta a "Credenciales inválidas"
-      // le diría a alguien que su contraseña está mal cuando el problema es
-      // nuestro.
-      if (status === 503) {
-        return { error: payload.error ?? 'Servicio no disponible' }
+      // Solo el propio veredicto de credenciales de la función (400) se
+      // traduce al mensaje de credenciales. Cualquier otro estado —404 (la
+      // función no está desplegada o cambió de nombre), 401 (JWT/anon key
+      // mal configurada), 502/504 (el runtime no arrancó o expiró), 429
+      // (límite de la plataforma), o un 200 con cuerpo malformado (sin
+      // session)— viene del gateway o de un fallo inesperado, no de un
+      // veredicto de credenciales, y decirle a quien entra que su
+      // contraseña está mal por un problema de infraestructura es
+      // justo lo que el override A existe para evitar.
+      if (status === 400) return { error: 'Credenciales inválidas' }
+      return {
+        error:
+          typeof payload.error === 'string'
+            ? payload.error
+            : 'Servicio no disponible, intenta de nuevo',
       }
-      return { error: 'Credenciales inválidas' }
     }
   } catch {
     return { error: 'No se pudo conectar. Revisa tu conexión.' }
@@ -96,7 +113,17 @@ export async function signUpWithPassword(
   if (invalidUsername) return { error: invalidUsername }
 
   const { data, error } = await supabase.auth.signUp({ email, password })
-  if (error) return { error: 'No se pudo crear la cuenta' }
+  if (error) {
+    // Con confirmaciones activas, GoTrue solo ofusca el registro duplicado
+    // de un correo SIN confirmar (reenvía el correo y responde como si
+    // fuera nuevo). Un correo YA confirmado responde distinto:
+    // user_already_exists. Sin este caso especial, esa diferencia es el
+    // oráculo que activar enable_confirmations se propuso cerrar — un
+    // atacante que registre un correo ajeno aprendería si ya tiene cuenta
+    // en Trainway por el solo mensaje de error.
+    if (error.code === 'user_already_exists') return { error: null }
+    return { error: 'No se pudo crear la cuenta' }
+  }
 
   // El trigger ya creó el perfil con username nulo. Si esta escritura falla
   // (por ejemplo porque alguien tomó el username en el intervalo), la cuenta

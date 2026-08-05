@@ -139,6 +139,57 @@ describe('signInWithIdentifier', () => {
     expect(result.error).not.toBe('Credenciales inválidas')
     expect(setSession).not.toHaveBeenCalled()
   })
+
+  // Solo el 400 de la función es un veredicto de credenciales. El navegador
+  // también puede recibir respuestas del gateway de Functions, que no es la
+  // función: 404 si no está desplegada, 401 por una anon key mal
+  // configurada, 502/504 si el runtime no arrancó. Ninguna de esas debe
+  // leerse como "contraseña incorrecta".
+  it('trata un estado inesperado (404) como fallo de servicio, no de credenciales', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'Function not found' }),
+    })
+    const result = await signInWithIdentifier('gerardo_99', 'contrasena12')
+    expect(result.error).toBe('Function not found')
+    expect(result.error).not.toBe('Credenciales inválidas')
+  })
+
+  it('trata un cuerpo no-JSON del gateway como fallo de servicio, no como problema de red', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new SyntaxError('Unexpected token <')
+      },
+    })
+    const result = await signInWithIdentifier('gerardo_99', 'contrasena12')
+    expect(result.error).toBe('Servicio no disponible, intenta de nuevo')
+    expect(result.error).not.toBe('No se pudo conectar. Revisa tu conexión.')
+  })
+
+  it('no revienta ni delata credenciales cuando el error del cuerpo no es texto', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: { unexpected: 'shape' } }),
+    })
+    const result = await signInWithIdentifier('gerardo_99', 'contrasena12')
+    expect(result.error).toBe('Servicio no disponible, intenta de nuevo')
+    expect(result.error).not.toBe('Credenciales inválidas')
+  })
+
+  it('trata un 200 con cuerpo malformado (sin session) como fallo de servicio', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    })
+    const result = await signInWithIdentifier('gerardo_99', 'contrasena12')
+    expect(result.error).not.toBe('Credenciales inválidas')
+    expect(setSession).not.toHaveBeenCalled()
+  })
 })
 
 describe('signUpWithPassword', () => {
@@ -158,5 +209,31 @@ describe('signUpWithPassword', () => {
     const result = await signUpWithPassword('no-es-correo', 'contrasena12', 'gerardo_99')
     expect(result.error).not.toBeNull()
     expect(signUpMock).not.toHaveBeenCalled()
+  })
+
+  // Con confirmaciones activas, GoTrue solo ofusca el registro duplicado de
+  // un correo SIN confirmar (reenvía el correo y responde como si fuera
+  // nuevo). Un correo YA confirmado responde distinto: user_already_exists.
+  // Sin este caso especial, esa diferencia es justo el oráculo que
+  // enable_confirmations se activó para cerrar — un atacante que registre
+  // un correo ajeno aprendería si ya tiene cuenta en Trainway por el solo
+  // mensaje de error.
+  it('trata un correo ya confirmado como éxito, para no delatar que la cuenta existe', async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'user_already_exists', message: 'User already registered' },
+    })
+    const result = await signUpWithPassword('ya@existe.com', 'contrasena12', 'gerardo_99')
+    expect(result.error).toBeNull()
+    expect(setUsernameMock).not.toHaveBeenCalled()
+  })
+
+  it('traduce cualquier otro fallo de signUp a un mensaje genérico', async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'unexpected_failure', message: 'boom' },
+    })
+    const result = await signUpWithPassword('a@b.com', 'contrasena12', 'gerardo_99')
+    expect(result.error).toBe('No se pudo crear la cuenta')
   })
 })
