@@ -5,7 +5,6 @@ const signInWithOAuth = vi.fn()
 const signOutMock = vi.fn()
 const setSession = vi.fn()
 const signUpMock = vi.fn()
-const setUsernameMock = vi.fn()
 const fetchMock = vi.fn()
 
 vi.mock('../../lib/supabase', () => ({
@@ -20,12 +19,8 @@ vi.mock('../../lib/supabase', () => ({
   },
 }))
 
-vi.mock('../profile/profile-repository', async (importOriginal) => {
-  // validateUsername es lógica pura y se quiere la real: si la simulamos,
-  // las pruebas de username inválido dejarían de probar nada.
-  const actual = await importOriginal<typeof import('../profile/profile-repository')>()
-  return { ...actual, setUsername: (...args: unknown[]) => setUsernameMock(...args) }
-})
+// validateUsername (la única función de profile-repository que sigue
+// importando auth-repository) es lógica pura; no hace falta simularla.
 
 vi.stubGlobal('fetch', fetchMock)
 
@@ -43,7 +38,6 @@ beforeEach(() => {
   signOutMock.mockReset()
   setSession.mockReset()
   signUpMock.mockReset()
-  setUsernameMock.mockReset()
   fetchMock.mockReset()
   setSession.mockResolvedValue({ error: null })
 })
@@ -225,7 +219,6 @@ describe('signUpWithPassword', () => {
     })
     const result = await signUpWithPassword('ya@existe.com', 'contrasena12', 'gerardo_99')
     expect(result.error).toBeNull()
-    expect(setUsernameMock).not.toHaveBeenCalled()
   })
 
   it('traduce cualquier otro fallo de signUp a un mensaje genérico', async () => {
@@ -235,5 +228,18 @@ describe('signUpWithPassword', () => {
     })
     const result = await signUpWithPassword('a@b.com', 'contrasena12', 'gerardo_99')
     expect(result.error).toBe('No se pudo crear la cuenta')
+  })
+
+  // El username no lo escribe el cliente (sin sesión, sin permiso de UPDATE):
+  // viaja en los metadatos para que lo escriba el trigger handle_new_user,
+  // que corre como dueño de la tabla.
+  it('manda el username en los metadatos de signUp, no como escritura aparte', async () => {
+    signUpMock.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
+    await signUpWithPassword('a@b.com', 'contrasena12', 'gerardo_99')
+    expect(signUpMock).toHaveBeenCalledWith({
+      email: 'a@b.com',
+      password: 'contrasena12',
+      options: { data: { username: 'gerardo_99' } },
+    })
   })
 })

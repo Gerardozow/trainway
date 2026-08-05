@@ -8,6 +8,11 @@ vi.mock('./auth-repository', () => ({
   signUpWithPassword: (...args: unknown[]) => signUpWithPassword(...args),
 }))
 
+const isUsernameAvailable = vi.fn()
+vi.mock('../profile/profile-repository', () => ({
+  isUsernameAvailable: (...args: unknown[]) => isUsernameAvailable(...args),
+}))
+
 const { SignupPage } = await import('./SignupPage')
 
 function renderSignupPage() {
@@ -21,6 +26,8 @@ function renderSignupPage() {
 describe('SignupPage', () => {
   beforeEach(() => {
     signUpWithPassword.mockReset()
+    isUsernameAvailable.mockReset()
+    isUsernameAvailable.mockResolvedValue(true)
   })
 
   it('envía correo, contraseña y username', async () => {
@@ -80,5 +87,43 @@ describe('SignupPage', () => {
 
     const link = await screen.findByRole('link', { name: /iniciar sesión/i })
     expect(link).toHaveAttribute('href', '/login')
+  })
+
+  // La comprobación previa no cierra la carrera (el trigger la cubre), pero
+  // convierte el caso común —nombre ya tomado— en un mensaje claro en vez de
+  // dejar que el alta siga y el perfil nazca sin username.
+  it('rechaza un username tomado antes de crear la cuenta', async () => {
+    isUsernameAvailable.mockResolvedValue(false)
+    const user = userEvent.setup()
+    renderSignupPage()
+
+    await user.type(screen.getByLabelText(/correo/i), 'gerardo@tradeway.mx')
+    await user.type(screen.getByLabelText(/contraseña/i), 'contrasena12')
+    await user.type(screen.getByLabelText(/usuario/i), 'gerardo_99')
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Ese username ya está tomado',
+    )
+    expect(signUpWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('crea la cuenta cuando el username está libre', async () => {
+    isUsernameAvailable.mockResolvedValue(true)
+    signUpWithPassword.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    renderSignupPage()
+
+    await user.type(screen.getByLabelText(/correo/i), 'gerardo@tradeway.mx')
+    await user.type(screen.getByLabelText(/contraseña/i), 'contrasena12')
+    await user.type(screen.getByLabelText(/usuario/i), 'gerardo_99')
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+
+    expect(await screen.findByText(/cuenta creada/i)).toBeInTheDocument()
+    expect(signUpWithPassword).toHaveBeenCalledWith(
+      'gerardo@tradeway.mx',
+      'contrasena12',
+      'gerardo_99',
+    )
   })
 })

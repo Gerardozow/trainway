@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import { setUsername, validateUsername } from '../profile/profile-repository'
+import { validateUsername } from '../profile/profile-repository'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MIN_PASSWORD_LENGTH = 8
@@ -112,7 +112,13 @@ export async function signUpWithPassword(
   const invalidUsername = validateUsername(username)
   if (invalidUsername) return { error: invalidUsername }
 
-  const { data, error } = await supabase.auth.signUp({ email, password })
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    // El username lo escribe el trigger handle_new_user: aquí todavía no hay
+    // sesión, así que el cliente no tiene permiso para tocar profiles.
+    options: { data: { username } },
+  })
   if (error) {
     // Con confirmaciones activas, GoTrue solo ofusca el registro duplicado
     // de un correo SIN confirmar (reenvía el correo y responde como si
@@ -123,13 +129,6 @@ export async function signUpWithPassword(
     // en Trainway por el solo mensaje de error.
     if (error.code === 'user_already_exists') return { error: null }
     return { error: 'No se pudo crear la cuenta' }
-  }
-
-  // El trigger ya creó el perfil con username nulo. Si esta escritura falla
-  // (por ejemplo porque alguien tomó el username en el intervalo), la cuenta
-  // existe igual y UsernameOnboarding se lo pedirá al entrar. No se pierde nada.
-  if (data.user) {
-    await setUsername(data.user.id, username)
   }
 
   return { error: null }

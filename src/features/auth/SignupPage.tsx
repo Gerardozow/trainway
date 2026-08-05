@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { signUpWithPassword } from './auth-repository'
+import { isUsernameAvailable } from '../profile/profile-repository'
 
 export function SignupPage() {
   const [email, setEmail] = useState('')
@@ -16,6 +17,16 @@ export function SignupPage() {
     setError(null)
 
     try {
+      // No cierra la carrera —entre esta comprobación y el alta alguien más
+      // puede tomar el nombre— pero convierte el caso común en un mensaje
+      // claro en vez de un perfil sin nombre. El trigger handle_new_user
+      // sigue cubriendo la carrera del lado del servidor.
+      const available = await isUsernameAvailable(username)
+      if (!available) {
+        setError('Ese username ya está tomado')
+        return
+      }
+
       const result = await signUpWithPassword(email, password, username)
       if (result.error) {
         setError(result.error)
