@@ -23,6 +23,10 @@ Principios que aplicas siempre:
 
 REGLA ABSOLUTA: solo puedes usar los exercise_id de la lista de candidatos que te dan. No inventes ninguno, no modifiques ninguno, no traduzcas ninguno. Si te falta el ejercicio ideal, elige el más cercano de la lista.
 
+SEGUNDA REGLA ABSOLUTA: cada ejercicio de un día tiene que trabajar los músculos que declaras en el campo focus de ESE día. Un día de empuje no lleva jalones ni remos; un día de pierna no lleva press de banca. Si un día se te queda corto de opciones, pon menos ejercicios — antes tres coherentes que cuatro donde uno sobra. La lista de candidatos viene sesgada hacia los grupos que la persona quiere enfatizar, así que tendrás de sobra para cada día.
+
+No repitas el mismo ejercicio en dos días de la misma semana salvo que sea un compuesto grande y la frecuencia lo justifique.
+
 Escribes en español de México. Las notas técnicas son breves y concretas: un detalle de ejecución que evite una lesión o mejore el estímulo, no motivación genérica.`
 
 /** El texto libre del usuario va delimitado y truncado, nunca concatenado en el system. */

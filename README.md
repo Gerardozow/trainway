@@ -63,13 +63,11 @@ npm run deploy
 
 ### DNS
 
-`gzow.dev` está en Cloudflare sin origen real. Una ruta de Worker necesita un registro DNS que resuelva, así que se crea uno **proxied** (nube naranja) apuntando a la dirección de descarte de IPv6:
+Una ruta de Worker necesita que el nombre resuelva a través de Cloudflare — no necesita un origen real, solo un registro **proxied** (nube naranja).
 
-```
-AAAA   gzow.dev   100::   (proxied)
-```
+`gzow.dev` ya tiene uno en el ápice (`A -> 31.214.178.55`, el parking de Dondominio), así que **no hay que tocar el DNS**. La ruta `gzow.dev/trainway*` se monta encima: Cloudflare la intercepta antes de llegar al parking y se la entrega al Worker. El resto del dominio sigue yendo donde iba.
 
-Cloudflare intercepta la petición antes de llegar a ningún sitio y la entrega al Worker. La raíz del dominio queda libre para otra cosa: solo `/trainway*` pertenece a este proyecto.
+Si algún día se quita ese registro, hace falta sustituirlo por uno proxied cualquiera —`AAAA gzow.dev 100::` (la dirección de descarte de IPv6) es el patrón habitual para dominios sin origen.
 
 ## Decisiones que conviene conocer
 

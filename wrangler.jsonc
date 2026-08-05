@@ -8,7 +8,17 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+
+    // El código va primero, siempre.
+    //
+    // El router de assets de Cloudflare buscaría en `dist/trainway*`, pero el
+    // build deja los archivos en la raíz de `dist/` (Vite ya mete el prefijo en
+    // las URL del HTML). Sin esto la app depende del fallback de SPA para
+    // resolverse, y `/trainway/api/*` podría recibir index.html en vez de
+    // llegar al Worker. Con `run_worker_first` el flujo es el que se diseñó:
+    // el Worker quita el prefijo y delega en el binding.
+    "run_worker_first": true
   },
 
   // La app vive en un subpath del dominio personal. La raíz de gzow.dev queda
@@ -23,8 +33,8 @@
   // Públicas: la anon key está protegida por RLS.
   // MINIMAX_API_KEY y SUPABASE_SERVICE_ROLE_KEY van con `wrangler secret put`.
   "vars": {
-    "SUPABASE_URL": "",
-    "SUPABASE_ANON_KEY": ""
+    "SUPABASE_URL": "https://yvflfcbskugtszzybikk.supabase.co",
+    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2ZmxmY2Jza3VndHN6enliaWtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5MjM1NDIsImV4cCI6MjEwMTQ5OTU0Mn0.lDmS6ccn7Rh-5fAXpICAy4tFn4rKYfwLpn7R-QgQgrE"
   },
 
   "observability": {

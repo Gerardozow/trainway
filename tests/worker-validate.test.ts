@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validatePlan, repairPlan } from '../worker/lib/validate'
+import { normalizePlan, validatePlan, repairPlan } from '../worker/lib/validate'
 import { filterCandidates } from '@/lib/catalog'
 import type { AiPlan } from '../worker/lib/schemas'
 
@@ -195,5 +195,64 @@ describe('repairPlan', () => {
     bad.days[0]!.exercises[0]!.exercise_id = 'Inventado_A'
     bad.days[1]!.exercises[2]!.exercise_id = 'Inventado_B'
     expect(validatePlan(repairPlan(bad, candidates), ids).ok).toBe(true)
+  })
+})
+
+describe('normalizePlan', () => {
+  const withReps = (reps: unknown) => ({
+    block_name: 'b',
+    rationale: 'r',
+    days: [{ day_index: 1, title: 't', focus: [], exercises: [{ exercise_id: 'x', reps }] }],
+  })
+  const firstExercise = (p: unknown) =>
+    (p as { days: { exercises: Record<string, unknown>[] }[] }).days[0]!.exercises[0]!
+
+  it('convierte "30 s" en duration_seconds y deja reps en null', () => {
+    const ex = firstExercise(normalizePlan(withReps('30 s')))
+    expect(ex.duration_seconds).toBe(30)
+    expect(ex.reps).toBeNull()
+  })
+
+  it('entiende minutos', () => {
+    expect(firstExercise(normalizePlan(withReps('2 min'))).duration_seconds).toBe(120)
+    expect(firstExercise(normalizePlan(withReps('1 minuto'))).duration_seconds).toBe(60)
+  })
+
+  it('tolera la forma pegada y el plural', () => {
+    expect(firstExercise(normalizePlan(withReps('45seg'))).duration_seconds).toBe(45)
+    expect(firstExercise(normalizePlan(withReps('20 segundos'))).duration_seconds).toBe(20)
+  })
+
+  it('no toca un rango de repeticiones normal', () => {
+    const ex = firstExercise(normalizePlan(withReps('8-10')))
+    expect(ex.reps).toBe('8-10')
+    expect(ex.duration_seconds).toBeUndefined()
+  })
+
+  it('no toca un valor fijo de repeticiones', () => {
+    expect(firstExercise(normalizePlan(withReps('12'))).reps).toBe('12')
+  })
+
+  it('respeta un duration_seconds que ya venía puesto', () => {
+    const plan = {
+      block_name: 'b',
+      rationale: 'r',
+      days: [
+        {
+          day_index: 1,
+          title: 't',
+          focus: [],
+          exercises: [{ exercise_id: 'x', reps: '30 s', duration_seconds: 90 }],
+        },
+      ],
+    }
+    expect(firstExercise(normalizePlan(plan)).duration_seconds).toBe(90)
+  })
+
+  it('con basura no lanza ni rompe nada', () => {
+    expect(() => normalizePlan(null)).not.toThrow()
+    expect(() => normalizePlan('texto')).not.toThrow()
+    expect(() => normalizePlan({ days: 'no es array' })).not.toThrow()
+    expect(() => normalizePlan({ days: [null, { exercises: [null] }] })).not.toThrow()
   })
 })

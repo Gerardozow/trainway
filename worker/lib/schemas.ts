@@ -71,7 +71,9 @@ export const PLAN_TOOL_SCHEMA = {
                 sets: { type: 'integer', minimum: 1, maximum: 8 },
                 reps: {
                   type: ['string', 'null'],
-                  description: 'Rango "8-10" o valor fijo "12". null solo en cardio.',
+                  description:
+                    'SOLO repeticiones: rango "8-10" o valor fijo "12". Nunca tiempo. ' +
+                    'Para isométricos, planchas o cardio pon reps en null y usa duration_seconds.',
                 },
                 target_rpe: { type: ['integer', 'null'], minimum: 5, maximum: 10 },
                 rest_seconds: { type: 'integer', minimum: 30, maximum: 300 },

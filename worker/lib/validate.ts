@@ -18,6 +18,43 @@ export type ValidationResult =
   | { ok: true; plan: AiPlan }
   | { ok: false; errors: string[] }
 
+/** "30 s" · "45seg" · "1 min" · "2 minutos" -> segundos. Null si no es tiempo. */
+function parseDurationText(text: string): number | null {
+  const m = /^(\d+)\s*(s|seg|segs|segundos?|m|min|mins|minutos?)$/i.exec(text.trim())
+  if (!m) return null
+  const n = Number(m[1])
+  return /^m/i.test(m[2]!) ? n * 60 : n
+}
+
+/**
+ * Coerciones seguras antes de validar.
+ *
+ * El modelo prescribe isométricos como `reps: "30 s"`, que es correcto para un
+ * entrenador y no encaja en el esquema. Convertirlo a `duration_seconds` es
+ * inequívoco, así que se hace en vez de tumbar un bloque de cuatro días por un
+ * solo ejercicio. Solo se normaliza lo que no admite otra lectura.
+ */
+export function normalizePlan(raw: unknown): unknown {
+  if (!isObject(raw) || !Array.isArray(raw.days)) return raw
+
+  for (const day of raw.days) {
+    if (!isObject(day) || !Array.isArray(day.exercises)) continue
+
+    for (const ex of day.exercises) {
+      if (!isObject(ex)) continue
+      if (typeof ex.reps !== 'string') continue
+
+      const seconds = parseDurationText(ex.reps)
+      if (seconds === null) continue
+
+      ex.duration_seconds ??= seconds
+      ex.reps = null
+    }
+  }
+
+  return raw
+}
+
 const SCHEMES = new Set(['double', 'linear', 'time', 'intensity'])
 
 function isObject(v: unknown): v is Record<string, unknown> {

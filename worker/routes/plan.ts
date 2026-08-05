@@ -5,7 +5,7 @@ import { db } from '../lib/supabase'
 import { callStructured, createMinimax, MINIMAX_MODEL } from '../lib/minimax'
 import { buildPlanPrompt, PLAN_SYSTEM_PROMPT } from '../lib/prompt'
 import { PLAN_TOOL_NAME, PLAN_TOOL_SCHEMA, type AiPlan } from '../lib/schemas'
-import { repairPlan, validatePlan } from '../lib/validate'
+import { normalizePlan, repairPlan, validatePlan } from '../lib/validate'
 import { expandBlock, BLOCK_WEEKS } from '../lib/expand'
 
 const CANDIDATE_LIMIT = 60
@@ -71,7 +71,7 @@ export async function handlePlan(req: Request, env: Env, userId: string, token: 
     toolName: PLAN_TOOL_NAME,
     toolSchema: PLAN_TOOL_SCHEMA,
   })
-  let result = validatePlan(raw, candidateIds)
+  let result = validatePlan(normalizePlan(raw), candidateIds)
 
   // Segundo intento, devolviéndole exactamente qué hizo mal.
   if (!result.ok) {
@@ -84,7 +84,7 @@ ${result.errors.map((e) => `- ${e}`).join('\n')}`,
       toolName: PLAN_TOOL_NAME,
       toolSchema: PLAN_TOOL_SCHEMA,
     })
-    result = validatePlan(raw, candidateIds)
+    result = validatePlan(normalizePlan(raw), candidateIds)
   }
 
   // Reparación: sustituye lo inválido en vez de dejar al usuario sin plan.
