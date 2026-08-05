@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "trainway",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  // La app vive en un subpath del dominio personal. La raíz de gzow.dev queda
+  // libre para otra cosa: solo /trainway* pertenece a este Worker.
+  "routes": [
+    {
+      "pattern": "gzow.dev/trainway*",
+      "zone_name": "gzow.dev"
+    }
+  ],
+
+  // Públicas: la anon key está protegida por RLS.
+  // MINIMAX_API_KEY y SUPABASE_SERVICE_ROLE_KEY van con `wrangler secret put`.
+  "vars": {
+    "SUPABASE_URL": "",
+    "SUPABASE_ANON_KEY": ""
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
