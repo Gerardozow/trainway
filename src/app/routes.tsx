@@ -5,6 +5,7 @@ import { SignupPage } from '../features/auth/SignupPage'
 import { RequireAuth } from '../features/auth/RequireAuth'
 import { ProfilePage } from '../features/profile/ProfilePage'
 import { ExercisesPage } from '../features/exercises/ExercisesPage'
+import { WorkoutPage } from '../features/workouts/WorkoutPage'
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -71,7 +72,7 @@ export const routes: RouteObject[] = [
     ),
     errorElement: <RouteError />,
     children: [
-      { index: true, element: <Placeholder title="Entrenar" /> },
+      { index: true, element: <WorkoutPage /> },
       { path: 'rutinas', element: <RoutinesPlaceholder /> },
       { path: 'ejercicios', element: <ExercisesPage /> },
       { path: 'progreso', element: <Placeholder title="Progreso" /> },
