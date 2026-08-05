@@ -50,6 +50,18 @@ Unlicense. La licencia no exige atribución; se pone igual.
 | `pnpm db:reset` | Recrea la base local y aplica las migraciones |
 | `pnpm seed:exercises` | Puebla el catálogo de ejercicios y sube sus imágenes |
 
+## Si las pruebas fallan con `AuthRetryableFetchError`
+
+Tras `pnpm db:reset` los contenedores cambian de IP y Kong, la puerta de
+entrada, se queda con las viejas cacheadas. Las pruebas que hablan con GoTrue
+fallan entonces con un error de red que no tiene nada que ver con el código:
+
+```bash
+docker restart supabase_kong_trainway
+```
+
+Esperar unos segundos y volver a correrlas.
+
 ## Despliegue de la Edge Function
 
 `sign-in` es la única función Edge del proyecto: recibe identificador
