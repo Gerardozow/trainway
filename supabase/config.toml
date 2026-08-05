@@ -230,16 +230,34 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-# Enabled: with this off, signUp() for an existing address returns "User
-# already registered" while a new one succeeds immediately — a binary
-# probe for whether an email has an account. With it on, GoTrue returns an
-# obfuscated fake user for an existing address, so both paths look
-# identical to the browser and /registro stops being an email-existence
-# oracle. It also means signUp() returns no session until the user
-# confirms: the browser never has a session to write profiles with anyway,
-# because the username from signup is written server-side by the
-# handle_new_user trigger, not by a client call
-# (src/features/auth/auth-repository.ts).
+#
+# Medido contra el stack en marcha (2026-08-04), con esto en true: GoTrue
+# responde HTTP 422 {"error_code":"user_already_exists"} cuando signUp() se
+# llama con un correo YA confirmado, y HTTP 200 cuando el correo es nuevo. No
+# hay ningún "usuario ofuscado" indistinguible de GoTrue aquí -- esa
+# afirmación se probó y es falsa. Lo que sí oculta la diferencia es el mapeo
+# del lado del cliente en src/features/auth/auth-repository.ts
+# (`error.code === 'user_already_exists'` -> `{ error: null }`), y eso solo
+# oculta el oráculo del propio formulario de Trainway (/registro):
+# `POST /auth/v1/signup` es alcanzable directo con la anon key pública, sin
+# pasar por ese formulario, y ahí la diferencia 422/200 sigue expuesta tal
+# cual. Además hay un segundo canal, independiente de este: un username de
+# sondeo se reclama (vía el trigger handle_new_user) solo cuando el correo
+# resulta nuevo, y username_available() lee esa respuesta. La existencia de
+# un correo en Trainway es discoverable por quien quiera medirla; ver la
+# sección "Al terminar este plan" de
+# docs/superpowers/plans/2026-08-04-plan-1b-password-auth.md para las tres
+# rutas medidas (incluida una de tiempo que no pasa por ninguna de las dos de
+# arriba) y por qué se dejan así, documentadas, en vez de cerrarse a medias.
+#
+# Las confirmaciones se activaron por otras dos razones, ninguna de ellas
+# cerrar ese oráculo: (1) que confirmar el correo sea un paso real antes de
+# poder entrar, y (2) que el texto "revisa tu correo" que ve quien se
+# registra sea cierto en vez de decorativo. También implica que signUp() no
+# devuelve sesión hasta que se confirma -- el navegador nunca tiene sesión
+# con la que escribir profiles de todos modos, porque el username del alta
+# lo escribe del lado del servidor el trigger handle_new_user, no una
+# llamada del cliente (src/features/auth/auth-repository.ts).
 enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false

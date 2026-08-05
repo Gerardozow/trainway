@@ -1656,4 +1656,45 @@ El usuario se registra con correo, contraseña y username, y entra escribiendo c
 
 Pendiente explícito fuera de alcance: recuperación de contraseña, y el proveedor de Google, que requiere credenciales de Google Cloud en el panel de Supabase.
 
+También pendiente, y **corrige una afirmación anterior de este mismo documento**: la
+sección "Enabled" de `supabase/config.toml` (junto a `enable_confirmations`) decía que
+activar confirmaciones cerraba el oráculo de existencia de correo de `/registro`. Medido
+contra el stack en marcha durante la revisión final de rama (2026-08-04), esa afirmación es
+falsa. Se midieron tres rutas independientes, las tres alcanzables con la anon key pública
+sin pasar por la Edge Function `sign-in`:
+
+1. **`POST /auth/v1/signup` en crudo.** GoTrue responde `HTTP 422
+   {"error_code":"user_already_exists"}` para un correo ya confirmado, y `HTTP 200` para uno
+   nuevo. No hay ofuscación de GoTrue: la diferencia es tan legible como sin confirmaciones.
+   El mapeo en `src/features/auth/auth-repository.ts`
+   (`error.code === 'user_already_exists'` -> `{ error: null }`) oculta esa diferencia solo
+   del formulario propio de Trainway (`/registro`); quien llame el endpoint directo la ve
+   tal cual.
+2. **Canal lateral del username.** Registrarse con un username de sondeo nuevo reclama ese
+   username (vía el trigger `handle_new_user`, que corre al insertarse la fila en
+   `auth.users`) únicamente cuando el correo es nuevo -- un correo ya confirmado hace que
+   GoTrue rechace el alta con 422 antes de que exista fila que dispare el trigger. Medido en
+   vivo: `username_available(sonda)` pasa de `true` a `false` tras un alta con correo nuevo,
+   y se queda en `true` tras un intento con un correo ya confirmado. Esta ruta sobrevive a
+   cualquier arreglo de la ruta 1 -- incluida una hipotética Edge Function de registro que
+   ofuscara la respuesta de `signUp` -- porque no depende de qué responde `signUp`, sino de
+   si el username quedó tomado.
+3. **Tiempo de `POST /auth/v1/token?grant_type=password`.** Medido en local: correo
+   desconocido ≈14ms, correo conocido + contraseña incorrecta ≈139-140ms (el costo real de
+   bcrypt). Un oráculo limpio de ~10x. No pasa por `sign-in`: GoTrue expone este endpoint
+   directo con la anon key pública, así que ninguna corrección dentro de la Edge Function lo
+   toca.
+
+Las tres se dejan así, documentadas como aceptadas, no como arregladas. Se evaluó construir
+una Edge Function de registro para cerrar las rutas 1 y 2 (haciendo que el cliente hable con
+un intermediario propio en vez de con GoTrue directo) y se descartó: cerraría dos de tres y
+dejaría la 3 abierta -- la propiedad "el registro no delata si un correo existe" seguiría
+sin cumplirse, y registrar esto como "arreglado" sería peor que dejarlo como hueco conocido,
+porque invitaría a que el resto del proyecto confiara en una garantía que no existe. Cerrar
+la ruta 3 requeriría dejar de exponer GoTrue con la anon key pública, o ponerle a
+`/auth/v1/token` un piso de tiempo -- y ese endpoint es de Supabase, no una Edge Function de
+Trainway, así que no hay código propio ahí donde ponerlo. Para volver a medir: crear un
+usuario confirmado con `admin.createUser(..., email_confirm: true)` y repetir los tres pasos
+de arriba contra el stack local (`pnpm db:start`, anon key de `pnpm supabase status`).
+
 También pendiente: **límite de intentos de acceso por quien llama, no por IP de la función**. `sign-in` hoy llama a GoTrue desde la IP de salida del runtime de la función, así que el límite de `auth.rate_limit.sign_in_sign_ups` (30 cada 5 minutos) no distingue entre quienes llaman — una sola persona agotándolo bloquea a todos los demás. Se evaluó reenviar `x-forwarded-for` y se descartó a propósito: ese encabezado lo pone quien hace la petición, no una capa de confianza; en un despliegue real la plataforma añade la IP verdadera a la cadena en vez de reemplazarla, y reenviar la cadena tal cual dejaría que quien ataca rote el valor y consiga un presupuesto por IP ilimitado — peor que la bolsa compartida que se buscaba arreglar. El cierre real no es código en la función: es un captcha (`[auth.captcha]`, ya preparado con `hcaptcha`/`turnstile` como opciones en `supabase/config.toml`, solo falta una cuenta real y pasar el token desde el cliente) o un throttle contra algo que quien llama no pueda falsificar.
