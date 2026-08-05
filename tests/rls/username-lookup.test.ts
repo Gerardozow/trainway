@@ -85,4 +85,19 @@ describe('funciones de búsqueda de username', () => {
     expect(error).toBeNull()
     expect(data).toBe(true)
   })
+
+  // email_for_username hace lower(p_username) desde 0002; username_available
+  // no lo hacía, así que un mismo username tomado reportaba "disponible" con
+  // mayúsculas y "tomado" en minúsculas -- divergente y verificado en vivo.
+  // SignupPage manda el username ya en minúsculas, pero cualquier otro
+  // llamador del RPC (o una futura pantalla que no lo garantice) volvería a
+  // ver la divergencia.
+  it('reporta un username tomado como no disponible aunque venga en mayúsculas', async () => {
+    const { data, error } = await anonClient().rpc('username_available', {
+      p_username: username.toUpperCase(),
+    })
+
+    expect(error).toBeNull()
+    expect(data).toBe(false)
+  })
 })
