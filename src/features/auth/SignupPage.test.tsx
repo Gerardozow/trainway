@@ -9,9 +9,15 @@ vi.mock('./auth-repository', () => ({
 }))
 
 const isUsernameAvailable = vi.fn()
-vi.mock('../profile/profile-repository', () => ({
-  isUsernameAvailable: (...args: unknown[]) => isUsernameAvailable(...args),
-}))
+vi.mock('../profile/profile-repository', async (importOriginal) => {
+  // validateUsername es lógica pura y se quiere la real: si se simulara,
+  // las pruebas de formato inválido dejarían de probar nada.
+  const actual = await importOriginal<typeof import('../profile/profile-repository')>()
+  return {
+    ...actual,
+    isUsernameAvailable: (...args: unknown[]) => isUsernameAvailable(...args),
+  }
+})
 
 const { SignupPage } = await import('./SignupPage')
 
@@ -110,6 +116,44 @@ describe('SignupPage', () => {
 
   it('crea la cuenta cuando el username está libre', async () => {
     isUsernameAvailable.mockResolvedValue(true)
+    signUpWithPassword.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    renderSignupPage()
+
+    await user.type(screen.getByLabelText(/correo/i), 'gerardo@tradeway.mx')
+    await user.type(screen.getByLabelText(/contraseña/i), 'contrasena12')
+    await user.type(screen.getByLabelText(/usuario/i), 'gerardo_99')
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+
+    expect(await screen.findByText(/cuenta creada/i)).toBeInTheDocument()
+    expect(signUpWithPassword).toHaveBeenCalledWith(
+      'gerardo@tradeway.mx',
+      'contrasena12',
+      'gerardo_99',
+    )
+  })
+
+  it('rechaza un username con formato inválido sin consultar disponibilidad', async () => {
+    const user = userEvent.setup()
+    renderSignupPage()
+
+    await user.type(screen.getByLabelText(/correo/i), 'gerardo@tradeway.mx')
+    await user.type(screen.getByLabelText(/contraseña/i), 'contrasena12')
+    await user.type(screen.getByLabelText(/usuario/i), 'ab')
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(isUsernameAvailable).not.toHaveBeenCalled()
+    expect(signUpWithPassword).not.toHaveBeenCalled()
+  })
+
+  // Un RPC caído (sin red, PGRST202 por caché de esquema sin recargar, etc.)
+  // no debe bloquear el alta: isUsernameAvailable devuelve null en ese caso,
+  // y la pantalla lo trata como vía libre en vez de fallar cerrado. El
+  // trigger handle_new_user es la garantía real de que la cuenta no se
+  // pierde, no este pre-chequeo.
+  it('sigue el alta cuando la comprobación de disponibilidad falla', async () => {
+    isUsernameAvailable.mockResolvedValue(null)
     signUpWithPassword.mockResolvedValue({ error: null })
     const user = userEvent.setup()
     renderSignupPage()

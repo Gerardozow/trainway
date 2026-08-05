@@ -56,10 +56,18 @@ export async function setUsername(
   return { error: null }
 }
 
-export async function isUsernameAvailable(username: string): Promise<boolean> {
+// El RPC puede fallar por razones ajenas a si el nombre está tomado: sin
+// red, o PostgREST con el caché de esquema todavía sin recargar la función
+// (PGRST202) tras un despliegue. Fallar cerrado ahí devolvería "tomado" y
+// bloquearía el alta entera mientras dure el problema — perder una cuenta
+// por una comprobación caída es peor motivo que perderla por una colisión
+// real, que es justo lo que este chequeo existe para evitar. `null` dice
+// "no se pudo saber" y deja que quien llama decida; el trigger
+// handle_new_user es la garantía real, no este pre-chequeo.
+export async function isUsernameAvailable(username: string): Promise<boolean | null> {
   const { data, error } = await supabase.rpc('username_available', {
     p_username: username,
   })
-  if (error) return false
+  if (error) return null
   return data === true
 }

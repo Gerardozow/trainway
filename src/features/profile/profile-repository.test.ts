@@ -109,9 +109,12 @@ describe('isUsernameAvailable', () => {
     expect(result).toBe(false)
   })
 
-  it('devuelve false ante un error del RPC en vez de propagarlo', async () => {
+  // Fallar cerrado (tratar un RPC caído como "tomado") bloquearía el alta
+  // por completo mientras dure el problema. null deja la decisión a quien
+  // llama en vez de fingir un veredicto que no se tiene.
+  it('devuelve null ante un error del RPC en vez de fallar cerrado', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
     const result = await isUsernameAvailable('gerardo_99')
-    expect(result).toBe(false)
+    expect(result).toBeNull()
   })
 })

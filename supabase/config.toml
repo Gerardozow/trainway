@@ -235,9 +235,11 @@ double_confirm_changes = true
 # probe for whether an email has an account. With it on, GoTrue returns an
 # obfuscated fake user for an existing address, so both paths look
 # identical to the browser and /registro stops being an email-existence
-# oracle. It also makes signUp() not return a session until the user
-# confirms, so Gate (features/auth/Gate.tsx) never races the in-flight
-# setUsername call from a fresh signup.
+# oracle. It also means signUp() returns no session until the user
+# confirms: the browser never has a session to write profiles with anyway,
+# because the username from signup is written server-side by the
+# handle_new_user trigger, not by a client call
+# (src/features/auth/auth-repository.ts).
 enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { signUpWithPassword } from './auth-repository'
-import { isUsernameAvailable } from '../profile/profile-repository'
+import { isUsernameAvailable, validateUsername } from '../profile/profile-repository'
 
 export function SignupPage() {
   const [email, setEmail] = useState('')
@@ -17,12 +17,23 @@ export function SignupPage() {
     setError(null)
 
     try {
+      // Antes de gastar una llamada de red en disponibilidad, el formato:
+      // así un username vacío o mal escrito da el error más útil primero.
+      const invalidUsername = validateUsername(username)
+      if (invalidUsername) {
+        setError(invalidUsername)
+        return
+      }
+
       // No cierra la carrera —entre esta comprobación y el alta alguien más
       // puede tomar el nombre— pero convierte el caso común en un mensaje
-      // claro en vez de un perfil sin nombre. El trigger handle_new_user
-      // sigue cubriendo la carrera del lado del servidor.
+      // claro en vez de un perfil sin nombre. Solo bloquea en un "tomado"
+      // explícito (false); si el RPC falla, isUsernameAvailable devuelve
+      // null y aquí se deja pasar: el trigger handle_new_user es la
+      // garantía real de que la cuenta no se pierde, no este pre-chequeo, y
+      // fallar cerrado bloquearía toda alta mientras el RPC esté caído.
       const available = await isUsernameAvailable(username)
-      if (!available) {
+      if (available === false) {
         setError('Ese username ya está tomado')
         return
       }

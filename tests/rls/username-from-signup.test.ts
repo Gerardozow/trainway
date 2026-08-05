@@ -12,13 +12,25 @@ async function signUpWith(username: string | null, suffix: string) {
   })
   if (error) throw error
 
-  const { data: profile } = await admin
+  const { data: profile, error: profileError } = await admin
     .from('profiles')
-    .select('username')
+    .select('id, username')
     .eq('id', data.user!.id)
     .single()
 
-  return profile?.username ?? null
+  // Sin esto, si el manejador de unique_violation solo tragara el error sin
+  // reintentar el insert (en vez de crear el perfil con username nulo), el
+  // trigger dejaría cero filas de perfil. `.single()` devolvería entonces
+  // PGRST116 (cero filas) y, si ese error se descartara como antes, este
+  // helper devolvería null — el mismo valor que un perfil real con username
+  // nulo. Las pruebas de colisión pasarían igual aunque no exista fila de
+  // perfil alguna, que es justo el estado que "una cuenta nunca se pierde"
+  // dice que no puede pasar. Propagar el error y afirmar el id fuerza a que
+  // la fila exista de verdad.
+  if (profileError) throw profileError
+  expect(profile.id).toBe(data.user!.id)
+
+  return profile.username
 }
 
 describe('username desde los metadatos del alta', () => {
