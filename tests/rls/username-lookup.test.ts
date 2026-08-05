@@ -8,7 +8,7 @@ describe('funciones de búsqueda de username', () => {
   let username: string
 
   beforeAll(async () => {
-    const stamp = Date.now().toString().slice(-6)
+    const stamp = crypto.randomUUID().slice(0, 8)
     email = `lookup-${stamp}@trainway.test`
     username = `lookup_${stamp}`
     alice = await createTestUser(email)
@@ -51,11 +51,16 @@ describe('funciones de búsqueda de username', () => {
       p_username: username,
     })
 
-    // Se afirman ambas cosas: un error (algo salió mal) por sí solo no
-    // distingue "permiso denegado" de "la función no existe o el RPC está mal
-    // escrito" — ambos casos producen un error no nulo. Lo que sí distingue
-    // una denegación real es que el correo jamás viaja en `data`.
+    // Se afirman las tres cosas. Un error no nulo por sí solo no distingue
+    // "permiso denegado" de "la función no existe o el RPC está mal escrito"
+    // -- ambos casos producen un error no nulo, y el segundo pasaría esta
+    // prueba igual sin que exista ninguna denegación real. 42501 es
+    // específicamente insufficient_privilege de Postgres: es el código que
+    // distingue una denegación real de un RPC roto o inexistente (que
+    // devolvería PGRST202, no 42501). Y el correo jamás debe viajar en
+    // `data`, pase lo que pase con `error`.
     expect(error).not.toBeNull()
+    expect(error?.code).toBe('42501')
     expect(data).toBeNull()
   })
 
@@ -65,6 +70,7 @@ describe('funciones de búsqueda de username', () => {
     })
 
     expect(error).not.toBeNull()
+    expect(error?.code).toBe('42501')
     expect(data).toBeNull()
   })
 

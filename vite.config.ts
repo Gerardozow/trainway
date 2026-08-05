@@ -73,6 +73,7 @@ export default defineConfig(({ mode }) => {
           },
         },
         {
+          extends: true,
           test: {
             name: 'edge',
             environment: 'node',

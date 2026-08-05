@@ -26,7 +26,7 @@ describe('RLS de profiles', () => {
   it('permite al usuario actualizar su propio perfil', async () => {
     const { data, error } = await alice.client
       .from('profiles')
-      .update({ username: `alice_${Date.now().toString().slice(-6)}` })
+      .update({ username: `alice_${crypto.randomUUID().slice(0, 8)}` })
       .eq('id', alice.id)
       .select()
 
@@ -70,7 +70,7 @@ describe('RLS de profiles', () => {
   })
 
   it('rechaza un username duplicado', async () => {
-    const shared = `dup_${Date.now().toString().slice(-6)}`
+    const shared = `dup_${crypto.randomUUID().slice(0, 8)}`
     await alice.client.from('profiles').update({ username: shared }).eq('id', alice.id)
 
     const { error } = await bob.client
@@ -84,7 +84,7 @@ describe('RLS de profiles', () => {
   })
 
   it('deja leer los perfiles a un visitante sin sesión', async () => {
-    const known = `pub_${Date.now().toString().slice(-6)}`
+    const known = `pub_${crypto.randomUUID().slice(0, 8)}`
     const { error: setupError } = await alice.client
       .from('profiles')
       .update({ username: known, display_name: 'Alice Pública' })

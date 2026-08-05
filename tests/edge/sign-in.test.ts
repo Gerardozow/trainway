@@ -25,7 +25,7 @@ describe('Edge Function sign-in', () => {
   let username: string
 
   beforeAll(async () => {
-    const stamp = Date.now().toString().slice(-6)
+    const stamp = crypto.randomUUID().slice(0, 8)
     email = `edge-${stamp}@trainway.test`
     username = `edge_${stamp}`
 

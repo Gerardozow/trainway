@@ -35,23 +35,23 @@ async function signUpWith(username: string | null, suffix: string) {
 
 describe('username desde los metadatos del alta', () => {
   it('guarda el username que viene en los metadatos', async () => {
-    const stamp = Date.now().toString().slice(-6)
+    const stamp = crypto.randomUUID().slice(0, 8)
     const username = `meta_${stamp}`
     expect(await signUpWith(username, `a${stamp}`)).toBe(username)
   }, 30_000)
 
   it('deja el perfil sin username cuando no viene ninguno', async () => {
-    const stamp = Date.now().toString().slice(-6)
+    const stamp = crypto.randomUUID().slice(0, 8)
     expect(await signUpWith(null, `b${stamp}`)).toBeNull()
   }, 30_000)
 
   it('ignora un username con formato inválido en vez de abortar el alta', async () => {
-    const stamp = Date.now().toString().slice(-6)
+    const stamp = crypto.randomUUID().slice(0, 8)
     expect(await signUpWith('MAYUSCULAS Y ESPACIOS', `c${stamp}`)).toBeNull()
   }, 30_000)
 
   it('crea la cuenta igual cuando el username ya está tomado', async () => {
-    const stamp = Date.now().toString().slice(-6)
+    const stamp = crypto.randomUUID().slice(0, 8)
     const username = `dup_${stamp}`
 
     expect(await signUpWith(username, `d${stamp}`)).toBe(username)
