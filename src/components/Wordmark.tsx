@@ -12,7 +12,7 @@ export function Wordmark({ className }: { className?: string }) {
       style={{ fontStretch: '115%', letterSpacing: '-0.03em' }}
     >
       <span className="text-[var(--fg)]">TRAIN</span>
-      <span className="text-volt">WAY</span>
+      <span className="text-volt-ink">WAY</span>
     </span>
   )
 }

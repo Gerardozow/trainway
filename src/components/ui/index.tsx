@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 
-export { Button } from './Button'
+export { Button, buttonClass } from './Button'
 export { Stepper } from './Stepper'
 
 /** La unidad de composición de toda la app. */

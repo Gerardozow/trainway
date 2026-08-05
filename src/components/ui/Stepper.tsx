@@ -45,7 +45,9 @@ export function Stepper({
         <Minus className="size-4" aria-hidden />
       </button>
 
-      <label className="relative min-w-0 flex-1">
+      {/* El sufijo va DESPUÉS del número, en su propia columna. Superpuesto se
+          comía las cifras: "62.5" se leía "62." con "kg" encima. */}
+      <label className="flex min-w-0 flex-1 items-baseline justify-center gap-1">
         <span className="sr-only">{label}</span>
         <input
           type="number"
@@ -58,15 +60,12 @@ export function Stepper({
             if (e.target.value !== '' && !Number.isNaN(n)) onChange(clamp(n))
           }}
           className={cn(
-            'num w-full bg-transparent py-2 text-center text-2xl',
-            'placeholder:text-[var(--fg-muted)] placeholder:font-normal',
+            'num min-w-0 flex-1 bg-transparent py-2 text-center text-2xl',
+            'placeholder:font-normal placeholder:text-[var(--fg-muted)]',
           )}
         />
-        {suffix && value !== null && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute right-1 bottom-2 text-[0.6875rem] font-bold text-[var(--fg-muted)]"
-          >
+        {suffix && (
+          <span aria-hidden className="shrink-0 text-[0.6875rem] font-bold text-[var(--fg-muted)]">
             {suffix}
           </span>
         )}

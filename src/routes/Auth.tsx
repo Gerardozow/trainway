@@ -68,7 +68,10 @@ export function Auth() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-8 px-6 py-10">
       <div className="flex flex-col gap-3">
-        <Wordmark className="h-7 self-start" />
+        <h1>
+          <Wordmark className="h-7" />
+          <span className="sr-only">Trainway</span>
+        </h1>
         <p className="text-[var(--fg-muted)]">
           {mode === 'entrar'
             ? 'Tu plan de gimnasio, ajustado cada semana.'

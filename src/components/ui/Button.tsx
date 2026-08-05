@@ -19,6 +19,22 @@ const SIZES: Record<Size, string> = {
   lg: 'min-h-14 px-6 text-base',
 }
 
+/** Para elementos que no son <button> pero deben verse igual, como un <Link>. */
+export function buttonClass(
+  opts: { variant?: Variant; size?: Size; full?: boolean; className?: string } = {},
+): string {
+  const { variant = 'outline', size = 'md', full = false, className } = opts
+  return cn(
+    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold',
+    'transition-[filter,background-color,opacity] duration-150',
+    'disabled:pointer-events-none disabled:opacity-40',
+    VARIANTS[variant],
+    SIZES[size],
+    full && 'w-full',
+    className,
+  )
+}
+
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant
   size?: Size
@@ -26,25 +42,6 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   children?: ReactNode
 }
 
-export function Button({
-  variant = 'outline',
-  size = 'md',
-  full = false,
-  className,
-  ...rest
-}: Props) {
-  return (
-    <button
-      className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-xl font-semibold',
-        'transition-[filter,background-color,opacity] duration-150',
-        'disabled:pointer-events-none disabled:opacity-40',
-        VARIANTS[variant],
-        SIZES[size],
-        full && 'w-full',
-        className,
-      )}
-      {...rest}
-    />
-  )
+export function Button({ variant, size, full, className, ...rest }: Props) {
+  return <button className={buttonClass({ variant, size, full, className })} {...rest} />
 }
