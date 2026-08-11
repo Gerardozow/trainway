@@ -42,6 +42,13 @@ export function normalizePlan(raw: unknown): unknown {
 
     for (const ex of day.exercises) {
       if (!isObject(ex)) continue
+
+      // Sin descanso declarado no hay nada que interpretar mal: el plan trae un
+      // hueco y hay que taparlo. Se tumbaba el bloque entero por esto.
+      if (typeof ex.rest_seconds !== 'number' || !Number.isFinite(ex.rest_seconds)) {
+        ex.rest_seconds = DEFAULT_REST_SECONDS
+      }
+
       if (typeof ex.reps !== 'string') continue
 
       const seconds = parseDurationText(ex.reps)
@@ -56,6 +63,9 @@ export function normalizePlan(raw: unknown): unknown {
 }
 
 const SCHEMES = new Set(['double', 'linear', 'time', 'intensity'])
+
+/** Lo que se pone cuando el plan no dice cuánto descansar. Ni corto ni largo. */
+const DEFAULT_REST_SECONDS = 90
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -84,9 +94,19 @@ function validateExercise(
     errors.push(`${where}: sets debe ser un entero de 1 a 8, llegó ${JSON.stringify(sets)}`)
   }
 
+  /*
+   * Cero es una respuesta válida, no un error.
+   *
+   * El modelo cierra la sesión con quince minutos de cinta y le pone
+   * `rest_seconds: 0`, que es exactamente lo que hace un entrenador: después
+   * del último ejercicio no se descansa, te vas a casa. Exigir 30 como mínimo
+   * tumbaba el bloque de cuatro semanas entero por eso, y la reparación no lo
+   * arregla porque solo sustituye ejercicios inválidos, no números.
+   */
   const rest = raw.rest_seconds
-  if (typeof rest !== 'number' || rest < 30 || rest > 300) {
-    errors.push(`${where}: rest_seconds debe estar entre 30 y 300, llegó ${JSON.stringify(rest)}`)
+  const restOk = typeof rest === 'number' && (rest === 0 || (rest >= 30 && rest <= 300))
+  if (!restOk) {
+    errors.push(`${where}: rest_seconds debe ser 0 o estar entre 30 y 300, llegó ${JSON.stringify(rest)}`)
   }
 
   // reps puede ser null solo si hay duración (cardio o isométrico).

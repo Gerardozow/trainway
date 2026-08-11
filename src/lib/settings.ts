@@ -59,8 +59,14 @@ function clampRest(value: unknown): number | null {
  *
  * Vive aquí y no en la pantalla de sesión porque es la regla, no la pantalla:
  * un segundo sitio que decidiera lo mismo acabaría decidiéndolo distinto.
+ *
+ * Cero gana siempre. El plan pone cero en el último ejercicio —los quince
+ * minutos de cinta con los que se cierra la sesión— y ahí no hay nada que
+ * cronometrar: se acabó, te vas a casa. Un descanso fijo no puede inventarse
+ * una espera después del final.
  */
 export function restFor(prescribed: number, settings: Settings): number {
+  if (prescribed === 0) return 0
   return settings.restSeconds ?? prescribed
 }
 

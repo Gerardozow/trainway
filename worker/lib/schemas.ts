@@ -76,7 +76,13 @@ export const PLAN_TOOL_SCHEMA = {
                     'Para isométricos, planchas o cardio pon reps en null y usa duration_seconds.',
                 },
                 target_rpe: { type: ['integer', 'null'], minimum: 5, maximum: 10 },
-                rest_seconds: { type: 'integer', minimum: 30, maximum: 300 },
+                rest_seconds: {
+                  type: 'integer',
+                  minimum: 0,
+                  maximum: 300,
+                  description:
+                    'Entre 30 y 300. Cero solo en el último ejercicio de la sesión, cuando ya no hay nada después.',
+                },
                 duration_seconds: {
                   type: ['integer', 'null'],
                   description: 'Solo cardio e isométricos.',

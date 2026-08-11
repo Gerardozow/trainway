@@ -45,7 +45,7 @@ export function cardioRule(intake: Intake): string {
 
   return `Cardio: SÍ, y es obligatorio.
 - Cierra al menos la mitad de los días con un ejercicio de categoría cardio, siempre el último de la sesión.
-- Ese ejercicio va con reps en null y duration_seconds entre 600 y 1200, sets en 1.
+- Ese ejercicio va con sets en 1, reps en null, duration_seconds entre 600 y 1200 y rest_seconds en 0.
 - El cardio es la excepción a la regla del focus: no tiene que trabajar los músculos del día.
 - No pongas cardio el día que más carga de pierna lleve.`
 }

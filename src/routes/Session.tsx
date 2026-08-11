@@ -323,11 +323,14 @@ export function Session() {
     const done = !current.done
     updateSet(exerciseId, index, { done })
 
-    // El descanso arranca solo al completar, no al desmarcar.
+    // El descanso arranca solo al completar, no al desmarcar. Y solo si hay
+    // descanso: el plan pone cero en el cardio con el que se cierra la sesión.
     if (done) {
       const settings = loadSettings()
       if (settings.vibrate) navigator.vibrate?.(30)
-      setRest({ seconds: restFor(restSeconds, settings), startedAt: Date.now() })
+
+      const seconds = restFor(restSeconds, settings)
+      if (seconds > 0) setRest({ seconds, startedAt: Date.now() })
     }
   }
 

@@ -116,6 +116,31 @@ describe('validatePlan', () => {
     expect(validatePlan(bad, ids).ok).toBe(false)
   })
 
+  /*
+   * Esto tumbaba bloques enteros en producción.
+   *
+   * El modelo cierra la sesión con quince minutos de cinta y le pone
+   * rest_seconds en 0, que es lo que hace un entrenador: después del último
+   * ejercicio no se descansa. Exigir 30 como mínimo mataba las cuatro semanas,
+   * y `repairPlan` no salvaba nada porque solo sustituye ejercicios inválidos.
+   */
+  it('acepta rest_seconds en 0: después del último ejercicio no se descansa', () => {
+    const plan = goodPlan()
+    const dia = plan.days[0]!.exercises
+    dia[dia.length - 1]!.rest_seconds = 0
+    expect(validatePlan(plan, ids).ok).toBe(true)
+  })
+
+  it('sigue rechazando un descanso absurdo', () => {
+    const bad = goodPlan()
+    bad.days[0]!.exercises[0]!.rest_seconds = 5
+    expect(validatePlan(bad, ids).ok).toBe(false)
+
+    const otro = goodPlan()
+    otro.days[0]!.exercises[0]!.rest_seconds = 900
+    expect(validatePlan(otro, ids).ok).toBe(false)
+  })
+
   it('rechaza un rango de reps malformado', () => {
     const bad = goodPlan()
     bad.days[0]!.exercises[0]!.reps = 'muchas'
@@ -206,6 +231,29 @@ describe('normalizePlan', () => {
   })
   const firstExercise = (p: unknown) =>
     (p as { days: { exercises: Record<string, unknown>[] }[] }).days[0]!.exercises[0]!
+
+  it('rellena el descanso que el modelo se dejó sin poner', () => {
+    // Llegaba `undefined` y la validación lo contaba como error. Un hueco no
+    // admite otra lectura: se tapa, no se tira el bloque entero.
+    const ex = firstExercise(normalizePlan(withReps('8-10')))
+    expect(ex.rest_seconds).toBe(90)
+  })
+
+  it('no pisa un descanso de 0 puesto a propósito', () => {
+    const plan = {
+      block_name: 'b',
+      rationale: 'r',
+      days: [
+        {
+          day_index: 1,
+          title: 't',
+          focus: [],
+          exercises: [{ exercise_id: 'x', reps: null, rest_seconds: 0 }],
+        },
+      ],
+    }
+    expect(firstExercise(normalizePlan(plan)).rest_seconds).toBe(0)
+  })
 
   it('convierte "30 s" en duration_seconds y deja reps en null', () => {
     const ex = firstExercise(normalizePlan(withReps('30 s')))
