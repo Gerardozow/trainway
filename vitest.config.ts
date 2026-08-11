@@ -5,7 +5,11 @@ import path from 'node:path'
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { '@': path.resolve(import.meta.dirname, 'src') },
+    alias: {
+      '@': path.resolve(import.meta.dirname, 'src'),
+      // Módulo virtual del plugin de PWA: solo existe cuando compila Vite.
+      'virtual:pwa-register': path.resolve(import.meta.dirname, 'tests/stubs/pwa-register.ts'),
+    },
   },
   test: {
     environment: 'jsdom',

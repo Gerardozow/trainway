@@ -287,6 +287,24 @@ export function Session() {
     })
   }
 
+  /**
+   * El mismo cambio en todas las series que faltan.
+   *
+   * Lo ya marcado no se toca: eso es lo que de verdad se levantó, y reescribirlo
+   * desde el control del ejercicio convertiría el historial en una intención.
+   */
+  function updateAllPending(exerciseId: string, patch: Partial<SetValues>) {
+    setSets((prev) => {
+      const rows = (prev[exerciseId] ?? []).map((row, i) => {
+        if (row.done) return row
+        const next = { ...row, ...patch }
+        void persist(exerciseId, i, next)
+        return next
+      })
+      return { ...prev, [exerciseId]: rows }
+    })
+  }
+
   function toggleDone(exerciseId: string, index: number, restSeconds: number) {
     const current = sets[exerciseId]?.[index]
     if (!current) return
@@ -515,6 +533,7 @@ export function Session() {
             expanded={openId === ex.id}
             onToggleExpand={() => setExpandedId(openId === ex.id ? '' : ex.id)}
             onChangeSet={(i, patch) => updateSet(ex.id, i, patch)}
+            onChangeAll={(patch) => updateAllPending(ex.id, patch)}
             onToggleDone={(i) => toggleDone(ex.id, i, ex.rest_seconds)}
             onSwap={() => setSwapping(ex.id)}
             onPostpone={exercises.length > 1 ? () => postpone(ex.id) : undefined}

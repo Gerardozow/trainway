@@ -44,22 +44,47 @@ test('el entrenamiento del día se abre y las series se marcan', async ({ page }
   expect(antes).toBeGreaterThan(0)
 })
 
-test('editar el peso abre el stepper y guarda el valor', async ({ page }) => {
+test('la carga se pone una vez y baja a todas las series', async ({ page }) => {
   await entrar(page)
   const empezar = page.getByRole('link', { name: /entrenamiento/i })
   test.skip((await empezar.count()) === 0, 'Hoy toca descanso')
   await empezar.click()
   await page.waitForURL('**/sesion/**')
 
-  await page.getByRole('button', { name: 'Editar peso' }).first().click()
-  const subir = page.getByRole('button', { name: 'Subir peso' }).first()
+  const carga = page.getByRole('button', { name: 'Editar peso de todas las series' })
+  test.skip((await carga.count()) === 0, 'El primer ejercicio de hoy es de cardio')
+
+  await carga.click()
+  const subir = page.getByRole('button', { name: 'Subir peso de todas las series' })
   await expect(subir).toBeVisible()
-
   await subir.click()
   await subir.click()
 
-  // El valor mostrado en la fila refleja el cambio.
-  await expect(page.getByRole('button', { name: 'Editar peso' }).first()).toContainText('kg')
+  // `exact` importa: sin él "Editar peso" también casaría con el control del
+  // ejercicio, que es justo lo que NO se está comprobando aquí.
+  const filas = page.getByRole('button', { name: 'Editar peso', exact: true })
+  const pesos = await filas.allTextContents()
+  expect(pesos.length).toBeGreaterThan(1)
+  expect(new Set(pesos).size).toBe(1)
+})
+
+test('tocar la foto la abre en grande sin cerrar el ejercicio', async ({ page }) => {
+  await entrar(page)
+  const empezar = page.getByRole('link', { name: /entrenamiento/i })
+  test.skip((await empezar.count()) === 0, 'Hoy toca descanso')
+  await empezar.click()
+  await page.waitForURL('**/sesion/**')
+
+  const abierto = page.getByRole('button', { expanded: true }).first()
+  await expect(abierto).toBeVisible()
+
+  await page.getByRole('button', { name: /en grande/ }).first().click()
+
+  await expect(page.getByRole('img', { name: /posición inicial/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Cerrar' }).click()
+
+  // Y el ejercicio sigue desplegado: la foto no era un interruptor.
+  await expect(page.getByRole('button', { expanded: true }).first()).toBeVisible()
 })
 
 test('la sesión se abre de cero sin red, con lo que quedó guardado', async ({ page, context }) => {

@@ -190,7 +190,7 @@ export function SetRow({
 }
 
 /** Número grande que hace de botón. 48 px de alto, se toca sin apuntar. */
-function ValueButton({
+export function ValueButton({
   label,
   value,
   unit,

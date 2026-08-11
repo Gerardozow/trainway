@@ -139,6 +139,50 @@ describe('avance automático de la sesión', () => {
     expect(titulos.at(-1)!).toHaveTextContent(/Bench Press/i)
   })
 
+  /** El peso que enseña cada fila de series, en orden. */
+  const pesos = () =>
+    screen.getAllByRole('button', { name: 'Editar peso' }).map((b) => b.textContent)
+
+  async function subirCarga(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Editar peso de todas las series' }))
+    await user.click(screen.getByRole('button', { name: 'Subir peso de todas las series' }))
+  }
+
+  it('cambiar la carga del ejercicio mueve todas las series que faltan', async () => {
+    const user = userEvent.setup()
+    renderSession()
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Editar peso de todas las series' })).toBeDefined(),
+    )
+
+    const antes = pesos()
+    await subirCarga(user)
+    const despues = pesos()
+
+    // Un solo gesto y las dos series quedan igual, con el peso nuevo.
+    expect(despues[0]).not.toBe(antes[0])
+    expect(despues[1]).toBe(despues[0])
+  })
+
+  it('la serie ya marcada conserva el peso con el que se levantó', async () => {
+    const user = userEvent.setup()
+    renderSession()
+
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /^Marcar serie/ })).toHaveLength(2),
+    )
+
+    await user.click(screen.getAllByRole('button', { name: /^Marcar serie/ })[0]!)
+
+    const antes = pesos()
+    await subirCarga(user)
+    const despues = pesos()
+
+    expect(despues[0]).toBe(antes[0])
+    expect(despues[1]).not.toBe(antes[1])
+  })
+
   it('el ejercicio terminado se cierra y deja de ocupar sitio', async () => {
     const user = userEvent.setup()
     renderSession()

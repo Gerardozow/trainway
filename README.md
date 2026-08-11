@@ -37,7 +37,7 @@ npm run dev
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo en `localhost:5173/trainway/` |
-| `npm test` | Vitest: 218 pruebas de lógica y componentes |
+| `npm test` | Vitest: 237 pruebas de lógica y componentes |
 | `npm run e2e` | Playwright en perfil móvil |
 | `npm run typecheck` | TypeScript en modo estricto |
 | `npm run build` | Compila a `dist/` |
@@ -74,6 +74,7 @@ Si algún día se quita ese registro, hace falta sustituirlo por uno proxied cua
 
 Es la pantalla que se usa de pie, con el móvil en una mano:
 
+- **La carga se pone una vez por ejercicio.** Un control arriba de las series mueve todas las que faltan. Las ya marcadas no se tocan: eso es lo que de verdad levantaste, y para bajar de 60 a 50 a mitad del ejercicio basta con cambiarlo ahí. Cada fila sigue siendo editable por separado para el caso raro.
 - **La vez pasada.** Encima de cada ejercicio, lo que levantaste la última vez —"50 kg × 10 · 9 · 8"— y en el editor de cada serie, esa misma serie.
 - **Avance automático.** Al terminar un ejercicio se abre el siguiente y la pantalla va hasta él. Siempre hacia delante; solo vuelve atrás si ya no queda nada por delante.
 - **Discos por lado.** 62.5 kg se carga como 20 + 1.25. Solo aparece en lo que va a barra.
@@ -106,6 +107,8 @@ Dos detalles que cuesta descubrir y conviene no volver a tropezar:
 **`set_logs.client_id` es la clave de idempotencia.** Lo genera el celular antes de tocar la red y no cambia nunca, ni al editar la serie. Un reintento tras un corte de señal no duplica la fila.
 
 **El build falla si faltan las variables de entorno.** Vite sustituye `import.meta.env.*` por literales al compilar; sin ellas, cualquier guardia de configuración se pliega a una constante y el bundler elimina la aplicación entera como código muerto, con el build marcado como exitoso. `vite.config.ts` aborta antes de que eso pase.
+
+**La versión nueva se pregunta, no se impone.** El service worker está en `prompt`, no en `autoUpdate`. Con `autoUpdate` el worker nuevo se activaba solo y borraba la caché del anterior: la pestaña abierta seguía con el HTML viejo y el primer chunk que pedía —Progreso— ya no existía, que es el error de MIME que apareció en producción. En `prompt` el worker viejo sigue sirviendo sus archivos hasta que el usuario acepta. Se comprueba cada hora y al volver a la app, y el aviso no sale en la sesión ni en el wizard: ahí una recarga interrumpe algo a medias.
 
 **El amarillo de marca nunca es color de texto sobre fondo claro.** `#FFC603` sobre blanco da 1.51:1. El token `--volt-ink` usa un paso más oscuro (5.21:1) para texto, y las gráficas usan colores validados aparte.
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, ZoomIn } from 'lucide-react'
 import { imageUrl } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 
@@ -57,9 +57,17 @@ export function ExerciseImage({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Ver ${alt} en grande`}
-        className={cn('shrink-0 cursor-zoom-in', className)}
+        className={cn('relative shrink-0 cursor-zoom-in', className)}
       >
         {thumb}
+        {/* Sin esta marca la miniatura no se lee como tocable: al lado de una
+            tarjeta que se despliega, una foto sin más parece decoración. */}
+        <span
+          aria-hidden
+          className="absolute right-1 bottom-1 grid size-5 place-items-center rounded-md bg-black/55 text-white"
+        >
+          <ZoomIn className="size-3" strokeWidth={2.5} />
+        </span>
       </button>
 
       <dialog

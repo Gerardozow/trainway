@@ -71,11 +71,15 @@ test('el manifest declara la PWA en el subpath correcto', async ({ page, request
 test('el service worker se registra y precachea el catálogo', async ({ page }) => {
   await page.goto('.')
 
-  const registered = await page.evaluate(async () => {
-    const reg = await navigator.serviceWorker.getRegistration()
-    return Boolean(reg)
-  })
-  expect(registered).toBe(true)
+  // El registro ya no va en un script del HTML: lo hace la app al montar, para
+  // poder enganchar el aviso de versión nueva. Así que hay que esperarlo.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration())),
+      { timeout: 10_000 },
+    )
+    .toBe(true)
 })
 
 test('el tema oscuro y el claro se aplican de verdad', async ({ page }) => {

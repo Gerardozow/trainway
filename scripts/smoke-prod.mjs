@@ -201,13 +201,48 @@ try {
       const posponer = await page.getByRole('button', { name: /Dejarlo para el final/ }).count()
       paso('un ejercicio se puede posponer', posponer > 0)
 
-      // El editor de peso. Los discos solo salen si el ejercicio va a barra,
-      // así que se informa de lo que haya en vez de exigirlo.
-      await page.getByRole('button', { name: 'Editar peso' }).first().click()
-      await page.waitForTimeout(400)
-      const editor = await page.getByRole('button', { name: 'Subir peso' }).count()
-      const discos = await page.getByText('Por lado').count()
-      paso('el editor de peso abre', editor > 0, discos > 0 ? 'con discos por lado' : 'sin barra')
+      // La foto en grande. Vivía dentro del botón que despliega, así que
+      // tocarla cerraba el ejercicio en vez de ampliar la imagen.
+      const lupa = page.getByRole('button', { name: /en grande/ }).first()
+      if ((await lupa.count()) > 0) {
+        await lupa.click()
+        await page.waitForTimeout(300)
+        const grande = await page.getByRole('img', { name: /posición inicial/ }).count()
+        const sigueAbierto = await page.getByRole('button', { expanded: true }).count()
+        await page.getByRole('button', { name: 'Cerrar' }).first().click()
+        await page.waitForTimeout(200)
+        paso('la foto se amplía sin cerrar el ejercicio', grande > 0 && sigueAbierto > 0)
+      }
+
+      // La carga se pone una vez por ejercicio. Los discos solo salen si va a
+      // barra, así que se informa de lo que haya en vez de exigirlo.
+      const carga = page.getByRole('button', { name: 'Editar peso de todas las series' })
+      if ((await carga.count()) > 0) {
+        await carga.click()
+        await page.waitForTimeout(400)
+        const editor = await page
+          .getByRole('button', { name: 'Subir peso de todas las series' })
+          .count()
+        const discos = await page.getByText('Por lado').count()
+        paso('el editor de peso abre', editor > 0, discos > 0 ? 'con discos por lado' : 'sin barra')
+
+        await page.getByRole('button', { name: 'Subir peso de todas las series' }).click()
+        await page.waitForTimeout(300)
+
+        // Todas las series que faltan comparten peso con un solo gesto. La ya
+        // marcada arriba puede tener otro, y eso es lo correcto.
+        const pesos = await page
+          .getByRole('button', { name: 'Editar peso', exact: true })
+          .allTextContents()
+        const pendientes = pesos.slice(1)
+        if (pendientes.length > 0) {
+          paso(
+            'un solo cambio mueve todas las series que faltan',
+            new Set(pendientes).size === 1,
+            pesos.join(' · '),
+          )
+        }
+      }
 
       // --- "La vez pasada" ---------------------------------------------------
       //

@@ -7,6 +7,7 @@ import { formatDaysAgo, formatPreviousSets, type PreviousSession } from '@/lib/h
 import { plateSet } from '@/lib/plates'
 import { barFor, warmupSets } from '@/lib/warmup'
 import { ExerciseImage } from './ExerciseImage'
+import { ExerciseLoad } from './ExerciseLoad'
 import { MuscleMap } from './MuscleMap'
 import { SetRow, type SetValues } from './SetRow'
 import { cn, formatDuration, weightUnit } from '@/lib/utils'
@@ -29,6 +30,7 @@ export function ExerciseCard({
   expanded,
   onToggleExpand,
   onChangeSet,
+  onChangeAll,
   onToggleDone,
   onSwap,
   onPostpone,
@@ -43,6 +45,8 @@ export function ExerciseCard({
   expanded: boolean
   onToggleExpand: () => void
   onChangeSet: (index: number, patch: Partial<SetValues>) => void
+  /** Cambia la carga de todas las series aún sin marcar. */
+  onChangeAll?: (patch: Partial<SetValues>) => void
   onToggleDone: (index: number) => void
   onSwap: () => void
   /** Sin esto no se ofrece posponer: con un solo ejercicio no hay a dónde ir. */
@@ -57,6 +61,11 @@ export function ExerciseCard({
   const isCardio = exercise.category === 'cardio'
   const doneCount = sets.filter((s) => s.done).length
   const complete = sets.length > 0 && doneCount === sets.length
+
+  // La referencia del control de carga es la próxima serie a hacer. Con todo
+  // marcado no hay nada que ajustar, así que el control desaparece.
+  const pendingCount = sets.length - doneCount
+  const reference = sets.find((s) => !s.done) ?? null
 
   // Los discos solo tienen sentido en lo que se carga en barra.
   const bar = isCardio ? 0 : barFor(catalog.equipment, units)
@@ -76,55 +85,66 @@ export function ExerciseCard({
       id={`ejercicio-${exercise.id}`}
       className={cn('strip scroll-mt-20 overflow-hidden', complete && !expanded && 'opacity-60')}
     >
-      <h2>
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          aria-expanded={expanded}
-          className="flex w-full items-center gap-3 p-3 text-left"
-        >
-          <ExerciseImage
-            images={catalog.images}
-            alt={name}
-            expandable={false}
-            className={cn('shrink-0 transition-all', expanded ? 'size-20' : 'size-14')}
-          />
+      {/* La miniatura NO va dentro del botón que despliega.
+          Estaba dentro y tocarla cerraba la tarjeta, que es justo lo contrario
+          de lo que pide el gesto: se toca una foto para verla más grande. Un
+          <button> tampoco puede anidar otro, así que son hermanos. */}
+      <div className="flex items-center gap-3 p-3">
+        <ExerciseImage
+          images={catalog.images}
+          alt={name}
+          className={cn('shrink-0 transition-all', expanded ? 'size-20' : 'size-14')}
+        />
 
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="display leading-tight text-[1.0625rem]">{name}</span>
-            <span className="text-xs text-[var(--fg-muted)]">
-              {catalog.primaryMuscles.map(muscleEs).join(' · ')}
+        <h2 className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            aria-expanded={expanded}
+            className="-my-3 flex w-full items-center gap-3 py-3 text-left"
+          >
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="display leading-tight text-[1.0625rem]">{name}</span>
+              <span className="text-xs text-[var(--fg-muted)]">
+                {catalog.primaryMuscles.map(muscleEs).join(' · ')}
+              </span>
+              <span className="mt-1 flex items-baseline gap-2">
+                <span className="num text-base">{prescription}</span>
+                {target.weight !== null && !isCardio && (
+                  <span className="num text-base text-volt-ink">
+                    {target.weight} {weightUnit(units)}
+                  </span>
+                )}
+                {exercise.target_rpe && <span className="eyebrow">RPE {exercise.target_rpe}</span>}
+              </span>
             </span>
-            <span className="mt-1 flex items-baseline gap-2">
-              <span className="num text-base">{prescription}</span>
-              {target.weight !== null && !isCardio && (
-                <span className="num text-base text-volt-ink">
-                  {target.weight} {weightUnit(units)}
-                </span>
-              )}
-              {exercise.target_rpe && <span className="eyebrow">RPE {exercise.target_rpe}</span>}
-            </span>
-          </span>
 
-          <span className="flex shrink-0 flex-col items-center gap-1">
-            <span
-              className={cn(
-                'num rounded-lg px-2 py-1 text-sm',
-                complete ? 'bg-volt text-volt-fg' : 'bg-[var(--surface-2)] text-[var(--fg-muted)]',
-              )}
-            >
-              {complete ? <Check className="size-4" strokeWidth={3} aria-hidden /> : `${doneCount}/${sets.length}`}
+            <span className="flex shrink-0 flex-col items-center gap-1">
+              <span
+                className={cn(
+                  'num rounded-lg px-2 py-1 text-sm',
+                  complete
+                    ? 'bg-volt text-volt-fg'
+                    : 'bg-[var(--surface-2)] text-[var(--fg-muted)]',
+                )}
+              >
+                {complete ? (
+                  <Check className="size-4" strokeWidth={3} aria-hidden />
+                ) : (
+                  `${doneCount}/${sets.length}`
+                )}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'size-4 text-[var(--fg-muted)] transition-transform',
+                  expanded && 'rotate-180',
+                )}
+                aria-hidden
+              />
             </span>
-            <ChevronDown
-              className={cn(
-                'size-4 text-[var(--fg-muted)] transition-transform',
-                expanded && 'rotate-180',
-              )}
-              aria-hidden
-            />
-          </span>
-        </button>
-      </h2>
+          </button>
+        </h2>
+      </div>
 
       {expanded && (
         <div className="flex flex-col gap-3 px-3 pb-3">
@@ -192,6 +212,20 @@ export function ExerciseCard({
               </span>
               <span className="ml-1 text-xs">— no se registra</span>
             </p>
+          )}
+
+          {/* Un solo sitio donde poner el peso del ejercicio. Las filas de abajo
+              siguen siendo editables una a una para el caso raro —fallaste la
+              tercera y bajas solo esa—, pero ya no es el camino normal. */}
+          {onChangeAll && reference && (
+            <ExerciseLoad
+              values={reference}
+              pending={pendingCount}
+              isCardio={isCardio}
+              units={units}
+              plates={plates}
+              onChange={onChangeAll}
+            />
           )}
 
           <div className="flex flex-col gap-1.5">

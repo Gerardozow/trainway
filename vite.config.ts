@@ -38,7 +38,21 @@ export default defineConfig(({ mode, command }) => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
+        /*
+         * 'prompt', no 'autoUpdate'.
+         *
+         * Con 'autoUpdate' el service worker nuevo se activa solo y borra la
+         * caché del anterior. La pestaña que ya estaba abierta sigue con el
+         * HTML viejo, así que el primer chunk que pida —Progreso, por ejemplo—
+         * ya no existe: es exactamente el fallo de MIME que se vio en
+         * producción. Y peor en el gimnasio: recargar sin avisar a mitad de
+         * serie.
+         *
+         * Con 'prompt' el service worker viejo sigue sirviendo sus archivos
+         * hasta que el usuario acepta, y el cambio de versión pasa entre
+         * entrenamientos y no dentro de uno.
+         */
+        registerType: 'prompt',
         includeAssets: ['icons/*.png', 'fonts/*.woff2'],
         manifest: {
           name: 'Trainway',

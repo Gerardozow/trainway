@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/client'
 import { SetupNeeded } from '@/routes/SetupNeeded'
 import { RequireAuth } from '@/components/RequireAuth'
 import { BottomNav } from '@/components/BottomNav'
+import { AppUpdatePrompt } from '@/components/UpdateBanner'
 import { Auth } from '@/routes/Auth'
 import { Onboarding } from '@/routes/Onboarding'
 import { Today } from '@/routes/Today'
@@ -33,6 +34,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       {children}
+      <AppUpdatePrompt enabled={!bare} />
       {!bare && <BottomNav />}
     </div>
   )

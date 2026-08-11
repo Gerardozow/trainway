@@ -131,6 +131,29 @@ describe('ExerciseCard', () => {
     expect(screen.queryByText('Por lado')).not.toBeInTheDocument()
   })
 
+  it('tocar la foto la abre en grande y NO cierra la tarjeta', async () => {
+    const user = userEvent.setup()
+    const onToggleExpand = vi.fn()
+    renderCard({ onToggleExpand })
+
+    // La miniatura vivía dentro del botón que despliega, así que el gesto de
+    // "ver la foto" acababa cerrando el ejercicio.
+    await user.click(screen.getByRole('button', { name: /Ver .* en grande/ }))
+
+    expect(onToggleExpand).not.toHaveBeenCalled()
+    expect(screen.getByAltText(/posición inicial/)).toBeInTheDocument()
+    expect(screen.getByAltText(/posición final/)).toBeInTheDocument()
+  })
+
+  it('la cabecera sigue desplegando al tocar el nombre', async () => {
+    const user = userEvent.setup()
+    const onToggleExpand = vi.fn()
+    renderCard({ onToggleExpand, expanded: false })
+
+    await user.click(screen.getByRole('button', { expanded: false }))
+    expect(onToggleExpand).toHaveBeenCalledTimes(1)
+  })
+
   it('al editar enseña esa misma serie de la vez pasada', async () => {
     const user = userEvent.setup()
     renderCard({ previous })
