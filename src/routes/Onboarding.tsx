@@ -40,7 +40,9 @@ const EMPTY: Answers = {
   experience: null,
   equipment: [],
   focusMuscles: [],
-  includeCardio: false,
+  // Encendido por defecto: casi todo el mundo lo quiere, y era la única casilla
+  // que había que descubrir para que el plan incluyera algo que ya esperabas.
+  includeCardio: true,
   limitations: '',
   freeNotes: '',
 }

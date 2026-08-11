@@ -29,6 +29,9 @@ const LEVELS_FOR: Record<Experience, Level[]> = {
 /** Categorías que nunca se prescriben como ejercicio de un plan. */
 const EXCLUDED_CATEGORIES = new Set(['stretching'])
 
+/** Cuántas máquinas de cardio ve el modelo cuando la persona lo pidió. */
+const CARDIO_SLOTS = 5
+
 const ALWAYS_AVAILABLE = 'body only'
 
 function scoreOf(e: Exercise, focus: Set<string>): number {
@@ -76,5 +79,22 @@ export function filterCandidates(criteria: Criteria, catalog: Exercise[]): Exerc
     return diff !== 0 ? diff : a.id.localeCompare(b.id)
   })
 
-  return limit ? result.slice(0, limit) : result
+  if (!limit) return result
+
+  /*
+   * El cardio necesita sitio reservado.
+   *
+   * Se puntúa por músculos trabajados, y una cinta no trabaja el pecho: caía al
+   * final de una lista de ochocientos y el recorte a sesenta se lo llevaba
+   * entero. El resultado era que pedir cardio en el cuestionario no cambiaba
+   * absolutamente nada — el modelo nunca llegó a ver un solo ejercicio de
+   * cardio que poder elegir.
+   */
+  const cardio = result.filter((e) => e.category === 'cardio')
+  if (cardio.length === 0) return result.slice(0, limit)
+
+  const reservados = Math.min(CARDIO_SLOTS, cardio.length, limit)
+  const resto = result.filter((e) => e.category !== 'cardio')
+
+  return [...resto.slice(0, limit - reservados), ...cardio.slice(0, reservados)]
 }

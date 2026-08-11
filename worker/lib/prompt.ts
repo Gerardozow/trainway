@@ -23,11 +23,32 @@ Principios que aplicas siempre:
 
 REGLA ABSOLUTA: solo puedes usar los exercise_id de la lista de candidatos que te dan. No inventes ninguno, no modifiques ninguno, no traduzcas ninguno. Si te falta el ejercicio ideal, elige el más cercano de la lista.
 
-SEGUNDA REGLA ABSOLUTA: cada ejercicio de un día tiene que trabajar los músculos que declaras en el campo focus de ESE día. Un día de empuje no lleva jalones ni remos; un día de pierna no lleva press de banca. Si un día se te queda corto de opciones, pon menos ejercicios — antes tres coherentes que cuatro donde uno sobra. La lista de candidatos viene sesgada hacia los grupos que la persona quiere enfatizar, así que tendrás de sobra para cada día.
+SEGUNDA REGLA ABSOLUTA: cada ejercicio de un día tiene que trabajar los músculos que declaras en el campo focus de ESE día. Un día de empuje no lleva jalones ni remos; un día de pierna no lleva press de banca. Si un día se te queda corto de opciones, pon menos ejercicios — antes tres coherentes que cuatro donde uno sobra. La lista de candidatos viene sesgada hacia los grupos que la persona quiere enfatizar, así que tendrás de sobra para cada día. La única excepción es el cardio: va al final de la sesión y no tiene que coincidir con el focus del día.
 
 No repitas el mismo ejercicio en dos días de la misma semana salvo que sea un compuesto grande y la frecuencia lo justifique.
 
 Escribes en español de México. Las notas técnicas son breves y concretas: un detalle de ejecución que evite una lesión o mejore el estímulo, no motivación genérica.`
+
+/**
+ * Qué hacer con el cardio.
+ *
+ * Antes esto era una línea de datos —"quiere cardio: sí"— y el modelo la leía
+ * como un rasgo de la persona, no como una instrucción. Con los candidatos de
+ * cardio delante, seguía sin ponerlos: nadie le había dicho dónde van, cuánto
+ * duran ni cómo se escriben. Un plan con cardio pedido y sin cardio dentro es
+ * la peor versión de las dos.
+ */
+export function cardioRule(intake: Intake): string {
+  if (!intake.include_cardio) {
+    return 'Cardio: NO. No uses ningún ejercicio de categoría cardio.'
+  }
+
+  return `Cardio: SÍ, y es obligatorio.
+- Cierra al menos la mitad de los días con un ejercicio de categoría cardio, siempre el último de la sesión.
+- Ese ejercicio va con reps en null y duration_seconds entre 600 y 1200, sets en 1.
+- El cardio es la excepción a la regla del focus: no tiene que trabajar los músculos del día.
+- No pongas cardio el día que más carga de pierna lleve.`
+}
 
 /** El texto libre del usuario va delimitado y truncado, nunca concatenado en el system. */
 function safeUserText(text: string | null, max = 2000): string {
@@ -61,7 +82,7 @@ Días disponibles por semana: ${intake.days_per_week}
 Minutos por sesión: ${intake.session_minutes}
 Equipamiento disponible: ${intake.equipment.map(equipmentEs).join(', ') || 'peso corporal'}
 Grupos a enfatizar: ${focus}
-Quiere incluir cardio de gimnasio: ${intake.include_cardio ? 'sí' : 'no'}
+${cardioRule(intake)}
 Limitaciones o lesiones: """${safeUserText(intake.limitations)}"""
 Comentarios libres: """${safeUserText(intake.free_notes)}"""
 

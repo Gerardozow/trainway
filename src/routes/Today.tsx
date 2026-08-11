@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, ChevronRight, CloudOff, Flame } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CloudOff, Flame, HeartPulse } from 'lucide-react'
 import { useAuth } from '@/lib/supabase/useAuth'
 import {
   currentWeek,
@@ -200,6 +200,12 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
   const streak = sessionStreak({ days, sessions, week: week!, dayIndex: isoDayIndex() })
   const marks = weekMarks({ days, sessions, week: week!, dayIndex: isoDayIndex() })
 
+  const cardioMinutes = Math.round(
+    exercises
+      .filter((ex) => ex.category === 'cardio')
+      .reduce((total, ex) => total + (ex.target_duration_seconds ?? 0), 0) / 60,
+  )
+
   return (
     <div className="flex flex-1 flex-col">
       <header className="mx-auto flex w-full max-w-lg items-center justify-between px-4 pt-4">
@@ -246,6 +252,17 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
                 {day.focus.map(muscleEs).join(' · ')}
                 {day.is_deload && ' · Semana de descarga'}
               </p>
+
+              {/* Que hoy toca cardio se sabía leyendo la lista hasta el final.
+                  Va aquí porque cambia cómo se planea la sesión: no es lo mismo
+                  reservar cuarenta minutos que una hora. */}
+              {cardioMinutes > 0 && (
+                <p className="mt-1 flex w-fit items-center gap-1.5 rounded-lg bg-[var(--surface-2)] px-2 py-1">
+                  <HeartPulse className="size-4 text-volt-ink" aria-hidden />
+                  <span className="num text-sm">{cardioMinutes} min</span>
+                  <span className="eyebrow">de cardio</span>
+                </p>
+              )}
             </section>
 
             <ul className="flex flex-col gap-2">
@@ -256,20 +273,41 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
                   (translations as Record<string, { name: string }>)[ex.exercise_id]?.name ??
                   catalog.name
 
-                return (
-                  <li key={ex.id} className="strip flex items-center gap-3 p-2.5">
+                const resumen =
+                  ex.category === 'cardio'
+                    ? `${Math.round((ex.target_duration_seconds ?? 0) / 60)} min`
+                    : `${ex.target_sets} × ${ex.target_reps ?? ''}`
+
+                const contenido = (
+                  <>
                     <ExerciseImage images={catalog.images} alt={name} className="size-14" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold leading-tight">{name}</p>
-                      <p className="text-xs text-[var(--fg-muted)]">
-                        {catalog.primaryMuscles.map(muscleEs).join(' · ')}
-                      </p>
-                    </div>
-                    <span className="num shrink-0 text-base text-[var(--fg-muted)]">
-                      {ex.category === 'cardio'
-                        ? `${Math.round((ex.target_duration_seconds ?? 0) / 60)} min`
-                        : `${ex.target_sets} × ${ex.target_reps ?? ''}`}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-bold leading-tight">{name}</span>
+                      <span className="block text-xs text-[var(--fg-muted)]">
+                        {ex.category === 'cardio'
+                          ? 'Cardio'
+                          : catalog.primaryMuscles.map(muscleEs).join(' · ')}
+                      </span>
                     </span>
+                    <span className="num shrink-0 text-base text-[var(--fg-muted)]">{resumen}</span>
+                  </>
+                )
+
+                return (
+                  <li key={ex.id} className="strip overflow-hidden">
+                    {/* Tocar un ejercicio entra al entrenamiento.
+                        Antes no era nada: el dedo sobre la fila solo conseguía
+                        seleccionar el nombre y sacar la barra de copiar. */}
+                    {isDone ? (
+                      <div className="flex items-center gap-3 p-2.5">{contenido}</div>
+                    ) : (
+                      <Link
+                        to={`/sesion/${day.id}`}
+                        className="press flex items-center gap-3 p-2.5 active:bg-[var(--surface-2)]"
+                      >
+                        {contenido}
+                      </Link>
+                    )}
                   </li>
                 )
               })}

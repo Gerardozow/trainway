@@ -93,6 +93,29 @@
      El desbordamiento horizontal se evita en la maquetación, y hay una prueba
      end-to-end que lo comprueba. */
 
+  /* Nada de seleccionar texto al tocar un control.
+     En el móvil no hay clic derecho ni doble clic: mantener el dedo sobre un
+     botón es la forma normal de tocarlo, y el navegador lo interpretaba como
+     "selecciona esto". Salía la barra de copiar encima del entrenamiento.
+     La prosa —notas, instrucciones— sí se puede seleccionar. */
+  button,
+  a,
+  label,
+  summary,
+  [role='button'],
+  .eyebrow,
+  .num {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Dentro de un control puede haber un campo de verdad. */
+  input,
+  textarea {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+
   /* Foco visible en todo, no solo donde nos acordemos. */
   :focus-visible {
     outline: 2px solid var(--color-volt);

@@ -106,7 +106,7 @@ export function PlanView() {
         focus_muscles: review.focus_muscles?.length
           ? review.focus_muscles
           : (base?.focus_muscles ?? []),
-        include_cardio: base?.include_cardio ?? false,
+        include_cardio: base?.include_cardio ?? true,
         limitations: base?.limitations ?? null,
         free_notes: base?.free_notes ?? null,
       })

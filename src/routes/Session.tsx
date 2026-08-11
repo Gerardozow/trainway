@@ -35,7 +35,7 @@ import { CALIBRATION_NOTE } from '@/lib/progression'
 import { previousSession } from '@/lib/history'
 import { raceWithFallback } from '@/lib/net'
 import { loadRest, saveRest, type RestState } from '@/lib/rest'
-import { loadSettings } from '@/lib/settings'
+import { loadSettings, restFor } from '@/lib/settings'
 import { useWakeLock } from '@/lib/useWakeLock'
 import { ExerciseCard } from '@/components/ExerciseCard'
 import type { SetValues } from '@/components/SetRow'
@@ -325,8 +325,9 @@ export function Session() {
 
     // El descanso arranca solo al completar, no al desmarcar.
     if (done) {
-      if (loadSettings().vibrate) navigator.vibrate?.(30)
-      setRest({ seconds: restSeconds, startedAt: Date.now() })
+      const settings = loadSettings()
+      if (settings.vibrate) navigator.vibrate?.(30)
+      setRest({ seconds: restFor(restSeconds, settings), startedAt: Date.now() })
     }
   }
 

@@ -6,13 +6,17 @@ import { useAuth } from '@/lib/supabase/useAuth'
 import { getLatestIntake, getProfile, updateProfile } from '@/lib/supabase/queries'
 import { useTheme, type Theme } from '@/lib/theme'
 import { clearLocal, pendingCount, syncNow } from '@/lib/offline'
-import { useSettings } from '@/lib/settings'
+import { REST_MAX, REST_MIN, REST_STEP, useSettings } from '@/lib/settings'
 import { EQUIPMENT_ES } from '@/lib/catalog'
 import { GOALS } from '@/lib/intakeOptions'
+import { formatDuration } from '@/lib/utils'
 import type { Units } from '@/lib/supabase/types'
-import { Button, Chip, Spinner } from '@/components/ui'
+import { Button, Chip, Spinner, Stepper } from '@/components/ui'
 import { InstallCard } from '@/components/InstallCard'
 import { Wordmark, Tagline } from '@/components/Wordmark'
+
+/** 90 s: el punto medio de lo que prescribe el plan, y un sitio del que subir o bajar. */
+const DEFAULT_REST = 90
 
 const THEMES: { value: Theme; label: string; Icon: typeof Sun }[] = [
   { value: 'light', label: 'Claro', Icon: Sun },
@@ -159,6 +163,46 @@ export function Profile() {
             Vibración
           </Chip>
         </div>
+      </section>
+
+      {/* El plan trae un descanso por ejercicio, y no es el mismo para una
+          sentadilla pesada que para un curl. Esto lo pisa entero: es para quien
+          entrena a reloj, o para el gimnasio lleno donde tres minutos parado no
+          se pueden pagar. */}
+      <section className="flex flex-col gap-2">
+        <h2 className="eyebrow">Descanso entre series</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <Chip
+            selected={settings.restSeconds === null}
+            onClick={() => updateSettings({ restSeconds: null })}
+          >
+            El del plan
+          </Chip>
+          <Chip
+            selected={settings.restSeconds !== null}
+            onClick={() => updateSettings({ restSeconds: settings.restSeconds ?? DEFAULT_REST })}
+          >
+            El mismo siempre
+          </Chip>
+        </div>
+
+        {settings.restSeconds !== null && (
+          <div className="aparece">
+            <Stepper
+              label="descanso entre series"
+              value={settings.restSeconds}
+              step={REST_STEP}
+              min={REST_MIN}
+              max={REST_MAX}
+              suffix="seg"
+              onChange={(v) => updateSettings({ restSeconds: v })}
+            />
+            <p className="pt-1 text-xs text-[var(--fg-muted)]">
+              {formatDuration(settings.restSeconds)} entre todas las series, en todos los
+              ejercicios.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-2">

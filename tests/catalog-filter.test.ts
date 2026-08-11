@@ -53,6 +53,59 @@ describe('filterCandidates', () => {
     expect(ids).not.toContain('Trail_Running_Walking')
   })
 
+  /*
+   * El fallo que esto guarda: el cardio pasaba el filtro y lo mataba el
+   * recorte. Se puntúa por músculos trabajados y una cinta no trabaja el pecho,
+   * así que caía al final de una lista de ochocientos y el corte a sesenta se
+   * lo llevaba entero. Pedir cardio en el cuestionario no cambiaba nada: el
+   * modelo nunca vio una sola máquina que poder elegir.
+   *
+   * La prueba anterior no lo detectaba porque pedía 200 candidatos. El límite
+   * de verdad, el que usa `worker/routes/plan.ts`, es 60.
+   */
+  const LIMITE_REAL = 60
+
+  it('con el límite de verdad el cardio sigue llegando al modelo', () => {
+    const out = filterCandidates({
+      equipment: ['barbell', 'dumbbell', 'cable', 'machine'],
+      level: 'intermedio',
+      // Un foco que no toca ninguna máquina de cardio: el caso que lo hundía.
+      focusMuscles: ['chest', 'lats', 'biceps'],
+      includeCardio: true,
+      limit: LIMITE_REAL,
+    })
+
+    expect(out.filter((e) => e.category === 'cardio').length).toBeGreaterThan(0)
+  })
+
+  it('el cardio no se cuela de más ni rompe el límite', () => {
+    const out = filterCandidates({
+      equipment: ['barbell', 'dumbbell', 'cable', 'machine'],
+      level: 'intermedio',
+      focusMuscles: ['chest'],
+      includeCardio: true,
+      limit: LIMITE_REAL,
+    })
+
+    expect(out).toHaveLength(LIMITE_REAL)
+    // Reservar sitio para cardio no puede dejar la sesión sin pesas.
+    expect(out.filter((e) => e.category === 'cardio').length).toBeLessThanOrEqual(5)
+    expect(out.filter((e) => e.category !== 'cardio').length).toBeGreaterThan(50)
+  })
+
+  it('sin cardio pedido el límite se llena de pesas', () => {
+    const out = filterCandidates({
+      equipment: ['barbell', 'dumbbell', 'cable', 'machine'],
+      level: 'intermedio',
+      focusMuscles: ['chest'],
+      includeCardio: false,
+      limit: LIMITE_REAL,
+    })
+
+    expect(out).toHaveLength(LIMITE_REAL)
+    expect(out.filter((e) => e.category === 'cardio')).toHaveLength(0)
+  })
+
   it('sin includeCardio no aparece ningún cardio', () => {
     const out = filterCandidates({
       equipment: ['machine'],

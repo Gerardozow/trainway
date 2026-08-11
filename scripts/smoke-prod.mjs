@@ -150,6 +150,28 @@ try {
     .select('*', { count: 'exact', head: true })
   paso('traducciones al español cacheadas', traducciones > 0, `${traducciones} ejercicios`)
 
+  // El cardio venía marcado en el cuestionario y no llegaba nunca al plan: se
+  // filtraba dentro y lo mataba el recorte a 60 candidatos. Que el cuestionario
+  // lo pida no basta; hay que ver la fila en la base.
+  const { data: diasDelBloque } = await admin
+    .from('program_days')
+    .select('id')
+    .eq('program_id', programa.id)
+
+  const { data: cardio } = await admin
+    .from('program_exercises')
+    .select('exercise_id, target_duration_seconds')
+    .eq('category', 'cardio')
+    .in(
+      'program_day_id',
+      diasDelBloque.map((d) => d.id),
+    )
+  paso(
+    'el plan trae cardio, como pedía el cuestionario',
+    (cardio?.length ?? 0) > 0,
+    cardio?.length ? `${cardio.length} · ${cardio[0].exercise_id}` : 'ninguno',
+  )
+
   // Al entrenamiento. Si hoy toca descanso se abre igualmente un día del plan:
   // el recorrido de la sesión es lo más importante que hay que verificar y no
   // puede depender de qué día de la semana se despliegue.
@@ -367,6 +389,16 @@ try {
   const instalar = await page.getByText(/Instalar la app/).count()
   const avisos = await page.getByRole('button', { name: /Sonido/ }).count()
   paso('perfil ofrece instalar y ajustar los avisos', instalar > 0 && avisos > 0)
+
+  // El descanso fijo: por defecto manda el del plan, y al elegir el fijo tiene
+  // que aparecer con qué ajustarlo.
+  await page.getByRole('button', { name: 'El mismo siempre' }).click()
+  await page.waitForTimeout(400)
+  const ajuste = await page
+    .getByRole('button', { name: 'Subir descanso entre series' })
+    .count()
+  const resumen = await page.getByText(/entre todas las series/).count()
+  paso('el descanso se puede fijar para todo', ajuste > 0 && resumen > 0)
   await page.screenshot({ path: `${OUT}/prod-perfil.png`, fullPage: true })
 
   const ignorables = /favicon|manifest|sw\.js|\.map$/
