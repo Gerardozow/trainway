@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Zona fija, y a propósito una con desfase negativo: agrupar por día es
+    // sensible al huso y en UTC los fallos de conversión no aparecen.
+    env: { TZ: 'America/Mexico_City' },
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
   },

@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { Stepper } from '@/components/ui'
+import { PlateHint } from '@/components/PlateHint'
 import { cn, formatDuration, weightUnit } from '@/lib/utils'
+import { formatPreviousSet, type PreviousSet } from '@/lib/history'
+import type { PlateSet } from '@/lib/plates'
 import type { Units } from '@/lib/supabase/types'
 
 export type SetValues = {
@@ -30,6 +33,8 @@ export function SetRow({
   values,
   isCardio,
   units,
+  previous,
+  plates,
   onChange,
   onToggleDone,
 }: {
@@ -37,6 +42,10 @@ export function SetRow({
   values: SetValues
   isCardio: boolean
   units: Units
+  /** La misma serie de la última sesión, si la hubo. */
+  previous?: PreviousSet | null
+  /** Discos disponibles, solo para lo que se carga en barra. */
+  plates?: PlateSet | null
   onChange: (patch: Partial<SetValues>) => void
   onToggleDone: () => void
 }) {
@@ -129,16 +138,28 @@ export function SetRow({
 
       {editing && (
         <div className="border-t border-[var(--line)] bg-[var(--surface-2)] px-2 py-2">
+          {/* Lo que se hizo la última vez, justo donde se decide el número.
+              Es la referencia que uno busca antes de subir o bajar la carga. */}
+          {previous && (
+            <p className="px-1 pb-1.5 text-xs text-[var(--fg-muted)]">
+              La vez pasada:{' '}
+              <span className="num text-[var(--fg)]">{formatPreviousSet(previous, units)}</span>
+            </p>
+          )}
+
           {editing === 'weight' && (
-            <Stepper
-              label="peso"
-              value={values.weight}
-              step={2.5}
-              min={0}
-              max={500}
-              suffix={weightUnit(units)}
-              onChange={(v) => onChange({ weight: v })}
-            />
+            <>
+              <Stepper
+                label="peso"
+                value={values.weight}
+                step={2.5}
+                min={0}
+                max={500}
+                suffix={weightUnit(units)}
+                onChange={(v) => onChange({ weight: v })}
+              />
+              {plates && <PlateHint weight={values.weight} set={plates} units={units} />}
+            </>
           )}
           {editing === 'reps' && (
             <Stepper

@@ -1,24 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { Minus, Plus, X } from 'lucide-react'
+import { loadSettings } from '@/lib/settings'
+import { playRestDone } from '@/lib/sound'
 import { formatDuration } from '@/lib/utils'
 
 /**
  * Arranca solo al marcar una serie. Ocupa el ancho completo abajo, encima de la
  * navegación: es lo único que importa mirar en ese momento.
+ *
+ * El descanso prescrito es una estimación, no una ley: hay días de subir la
+ * carga y días de tener prisa. Los botones de ±  ajustan sobre la marcha sin
+ * salir de la pantalla.
  */
 export function RestTimer({
   seconds,
   startedAt,
+  onAdjust,
   onDismiss,
 }: {
   seconds: number
   startedAt: number
+  onAdjust: (deltaSeconds: number) => void
   onDismiss: () => void
 }) {
   const [remaining, setRemaining] = useState(seconds)
   const buzzed = useRef(false)
 
   useEffect(() => {
+    // Alargar el descanso después de que suene tiene que volver a sonar.
     buzzed.current = false
 
     const tick = () => {
@@ -27,7 +36,11 @@ export function RestTimer({
 
       if (left <= 0 && !buzzed.current) {
         buzzed.current = true
-        navigator.vibrate?.([200, 100, 200])
+        // Se leen las preferencias en el momento del aviso: cambiarlas en otra
+        // pestaña no debería exigir reiniciar el descanso.
+        const settings = loadSettings()
+        if (settings.vibrate) navigator.vibrate?.([200, 100, 200])
+        if (settings.sound) playRestDone()
       }
     }
 
@@ -58,22 +71,44 @@ export function RestTimer({
         />
       </div>
 
-      <div className="relative flex items-center justify-between px-4 py-3">
-        <div className="flex flex-col">
+      <div className="relative flex items-center gap-1 px-3 py-2">
+        <div className="flex min-w-24 flex-col">
           <span className="eyebrow">{done ? 'Listo' : 'Descanso'}</span>
           <span className="num text-2xl tabular-nums">
             {done ? '¡Vamos!' : formatDuration(remaining)}
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Saltar descanso"
-          className="grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
-        >
-          <X className="size-5" aria-hidden />
-        </button>
+        <div className="flex flex-1 items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => onAdjust(-15)}
+            aria-label="Quitar 15 segundos de descanso"
+            className="num flex h-12 min-w-12 items-center justify-center gap-0.5 rounded-xl border border-[var(--line)] px-2 text-sm active:bg-[var(--surface-2)]"
+          >
+            <Minus className="size-3.5" aria-hidden />
+            15
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onAdjust(30)}
+            aria-label="Añadir 30 segundos de descanso"
+            className="num flex h-12 min-w-12 items-center justify-center gap-0.5 rounded-xl border border-[var(--line)] px-2 text-sm active:bg-[var(--surface-2)]"
+          >
+            <Plus className="size-3.5" aria-hidden />
+            30
+          </button>
+
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Saltar descanso"
+            className="grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
+          >
+            <X className="size-5" aria-hidden />
+          </button>
+        </div>
       </div>
     </div>
   )

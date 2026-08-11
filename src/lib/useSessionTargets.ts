@@ -1,4 +1,5 @@
 import { nextTarget, parseRepRange, type LastPerformance, type Target } from '@/lib/progression'
+import { localDay } from '@/lib/history'
 import { roundToHalf } from '@/lib/utils'
 import type { ProgramExercise, SetLog } from '@/lib/supabase/types'
 
@@ -30,12 +31,12 @@ export function targetFor(
     : target
 }
 
-/** Agrupa el historial por día, del más reciente al más antiguo. */
+/** Agrupa el historial por día del usuario, del más reciente al más antiguo. */
 function groupByDay(history: SetLog[]): SetLog[][] {
   const byDay = new Map<string, SetLog[]>()
 
   for (const log of history) {
-    const day = log.logged_at.slice(0, 10)
+    const day = localDay(log.logged_at)
     const bucket = byDay.get(day)
     if (bucket) bucket.push(log)
     else byDay.set(day, [log])

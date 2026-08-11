@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
@@ -19,6 +19,9 @@ import type { Exercise } from '@/lib/catalog'
 import { db, enqueueSet, localSetsForSession, scheduleFlush, syncNow } from '@/lib/offline'
 import { targetFor } from '@/lib/useSessionTargets'
 import { CALIBRATION_NOTE } from '@/lib/progression'
+import { previousSession } from '@/lib/history'
+import { loadRest, saveRest, type RestState } from '@/lib/rest'
+import { loadSettings } from '@/lib/settings'
 import { useWakeLock } from '@/lib/useWakeLock'
 import { ExerciseCard } from '@/components/ExerciseCard'
 import type { SetValues } from '@/components/SetRow'
@@ -28,6 +31,18 @@ import { Button, Spinner, Textarea } from '@/components/ui'
 import { Stepper } from '@/components/ui'
 
 type SetsByExercise = Record<string, SetValues[]>
+
+/** La cabecera es fija: sin el margen, el título del ejercicio queda debajo. */
+const SCROLL_OFFSET = 72
+
+function scrollToCard(domId: string) {
+  const el = document.getElementById(domId)
+  if (!el) return
+
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  const top = el.getBoundingClientRect().top + window.scrollY - SCROLL_OFFSET
+  window.scrollTo({ top: Math.max(0, top), behavior: reduced ? 'auto' : 'smooth' })
+}
 
 const emptySet = (): SetValues => ({
   weight: null,
@@ -43,15 +58,22 @@ export function Session() {
   const { user } = useAuth()
 
   const [sets, setSets] = useState<SetsByExercise>({})
-  const [rest, setRest] = useState<{ seconds: number; startedAt: number } | null>(null)
+  const [rest, setRestState] = useState<RestState | null>(() => loadRest())
   const [finishing, setFinishing] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [postponed, setPostponed] = useState<string[]>([])
   const [swapping, setSwapping] = useState<string | null>(null)
   const [swapBusy, setSwapBusy] = useState(false)
   const [sessionRpe, setSessionRpe] = useState<number | null>(null)
   const [notes, setNotes] = useState('')
 
   useWakeLock(true)
+
+  /** El descanso vive también en localStorage: recargar no puede tirarlo. */
+  const setRest = useCallback((next: RestState | null) => {
+    setRestState(next)
+    saveRest(next)
+  }, [])
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['session', programDayId, user?.id],
@@ -82,6 +104,24 @@ export function Session() {
     },
   })
 
+  /**
+   * El orden de hoy.
+   *
+   * Posponer no toca la base de datos: es "esta máquina está ocupada, ya
+   * volveré", no un cambio de plan. Al recargar vuelve el orden del programa.
+   */
+  const exercises = useMemo(() => {
+    if (!data) return []
+    if (postponed.length === 0) return data.day.exercises
+
+    const enSitio = data.day.exercises.filter((ex) => !postponed.includes(ex.id))
+    const alFinal = postponed
+      .map((id) => data.day.exercises.find((ex) => ex.id === id))
+      .filter((ex) => ex !== undefined)
+
+    return [...enSitio, ...alFinal]
+  }, [data, postponed])
+
   const targets = useMemo(() => {
     if (!data) return {}
     return Object.fromEntries(
@@ -89,6 +129,14 @@ export function Session() {
         ex.id,
         targetFor(ex, data.history[ex.exercise_id], data.day.is_deload),
       ]),
+    )
+  }, [data])
+
+  /** Lo que se hizo la última vez en cada ejercicio. Hoy no cuenta. */
+  const previous = useMemo(() => {
+    if (!data) return {}
+    return Object.fromEntries(
+      data.day.exercises.map((ex) => [ex.id, previousSession(data.history[ex.exercise_id])]),
     )
   }, [data])
 
@@ -169,14 +217,14 @@ export function Session() {
 
     // El descanso arranca solo al completar, no al desmarcar.
     if (done) {
-      navigator.vibrate?.(30)
+      if (loadSettings().vibrate) navigator.vibrate?.(30)
       setRest({ seconds: restSeconds, startedAt: Date.now() })
     }
   }
 
   /** El ejercicio abierto: el primero sin terminar, salvo que se elija otro. */
   const firstIncomplete =
-    data?.day.exercises.find((ex) => {
+    exercises.find((ex) => {
       const rows = sets[ex.id] ?? []
       return rows.length === 0 || rows.some((r) => !r.done)
     })?.id ?? null
@@ -185,6 +233,65 @@ export function Session() {
 
   /** Series de este ejercicio ya marcadas: cambiarlo hoy falsearía el historial. */
   const hasLoggedSets = (exerciseId: string) => (sets[exerciseId] ?? []).some((r) => r.done)
+
+  /** Al final de la cola y a por el siguiente. La máquina ocupada no para la sesión. */
+  function postpone(exerciseId: string) {
+    setPostponed((prev) => [...prev.filter((id) => id !== exerciseId), exerciseId])
+
+    const next = exercises.find((ex) => {
+      if (ex.id === exerciseId) return false
+      const rows = sets[ex.id] ?? []
+      return rows.length === 0 || rows.some((r) => !r.done)
+    })
+    setExpandedId(next?.id ?? '')
+    if (next) setTimeout(() => scrollToCard(`ejercicio-${next.id}`), 50)
+  }
+
+  // --- Avance automático ----------------------------------------------------
+  //
+  // Al terminar un ejercicio, el siguiente se abre y la pantalla se mueve hasta
+  // él. Sin esto hay que buscarlo y tocarlo con las manos ocupadas: el acordeón
+  // ahorra scroll pero deja el trabajo de navegar al usuario.
+
+  const completedIds = useMemo(() => {
+    const done = new Set<string>()
+    for (const [id, rows] of Object.entries(sets)) {
+      if (rows.length > 0 && rows.every((r) => r.done)) done.add(id)
+    }
+    return done
+  }, [sets])
+
+  const knownComplete = useRef<Set<string> | null>(null)
+
+  useEffect(() => {
+    if (!data || Object.keys(sets).length === 0) return
+
+    // El primer paso solo hace la foto: al retomar una sesión a medias, lo que
+    // ya estaba terminado no es una novedad a la que saltar.
+    if (knownComplete.current === null) {
+      knownComplete.current = completedIds
+      return
+    }
+
+    const justFinished = [...completedIds].find((id) => !knownComplete.current!.has(id))
+    knownComplete.current = completedIds
+    if (!justFinished) return
+
+    // El siguiente es el que viene DESPUÉS del que se acaba de terminar. Solo
+    // si ya no queda nada por delante se vuelve a lo que se saltó antes:
+    // mandar la pantalla hacia atrás a mitad de sesión desorienta.
+    const from = exercises.findIndex((ex) => ex.id === justFinished) + 1
+    const pending = (ex: (typeof exercises)[number]) => !completedIds.has(ex.id)
+    const next = exercises.slice(from).find(pending) ?? exercises.find(pending)
+    setExpandedId(next?.id ?? '')
+
+    // Un respiro antes de moverse: da tiempo a ver la fila llenarse de amarillo.
+    const timer = setTimeout(
+      () => scrollToCard(next ? `ejercicio-${next.id}` : 'cerrar-sesion'),
+      350,
+    )
+    return () => clearTimeout(timer)
+  }, [completedIds, data, sets])
 
   async function applySwap(programExerciseId: string, chosen: Exercise, scope: SwapScope) {
     if (!data) return
@@ -212,6 +319,7 @@ export function Session() {
   async function finish() {
     if (!data) return
     setFinishing(true)
+    setRest(null)
     await completeSession(data.session.id, {
       session_rpe: sessionRpe,
       notes: notes.trim() || null,
@@ -293,7 +401,7 @@ export function Session() {
           </p>
         )}
 
-        {data.day.exercises.map((ex) => (
+        {exercises.map((ex) => (
           <ExerciseCard
             key={ex.id}
             exercise={ex}
@@ -301,15 +409,17 @@ export function Session() {
             target={targets[ex.id]!}
             sets={sets[ex.id] ?? []}
             units={data.profile?.units ?? 'metric'}
+            previous={previous[ex.id] ?? null}
             expanded={openId === ex.id}
             onToggleExpand={() => setExpandedId(openId === ex.id ? '' : ex.id)}
             onChangeSet={(i, patch) => updateSet(ex.id, i, patch)}
             onToggleDone={(i) => toggleDone(ex.id, i, ex.rest_seconds)}
             onSwap={() => setSwapping(ex.id)}
+            onPostpone={exercises.length > 1 ? () => postpone(ex.id) : undefined}
           />
         ))}
 
-        <section className="strip flex flex-col gap-3 p-4">
+        <section id="cerrar-sesion" className="strip flex flex-col gap-3 scroll-mt-20 p-4">
           <h2 className="display text-lg">Cerrar la sesión</h2>
 
           <div className="flex flex-col gap-1.5">
@@ -360,6 +470,9 @@ export function Session() {
             <RestTimer
               seconds={rest.seconds}
               startedAt={rest.startedAt}
+              onAdjust={(delta) =>
+                setRest({ ...rest, seconds: Math.max(15, rest.seconds + delta) })
+              }
               onDismiss={() => setRest(null)}
             />
           </div>

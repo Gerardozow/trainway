@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { Check, ChevronDown, Info, Repeat2 } from 'lucide-react'
+import { ArrowDownToLine, Check, ChevronDown, Info, Repeat2 } from 'lucide-react'
 import { getExercise, muscleEs } from '@/lib/catalog'
 import type { ExerciseTranslation, ProgramExercise, Units } from '@/lib/supabase/types'
 import { CALIBRATION_NOTE, type Target } from '@/lib/progression'
+import { formatDaysAgo, formatPreviousSets, type PreviousSession } from '@/lib/history'
+import { plateSet } from '@/lib/plates'
+import { barFor, warmupSets } from '@/lib/warmup'
 import { ExerciseImage } from './ExerciseImage'
 import { MuscleMap } from './MuscleMap'
 import { SetRow, type SetValues } from './SetRow'
@@ -22,22 +25,28 @@ export function ExerciseCard({
   target,
   sets,
   units,
+  previous,
   expanded,
   onToggleExpand,
   onChangeSet,
   onToggleDone,
   onSwap,
+  onPostpone,
 }: {
   exercise: ProgramExercise
   translation: ExerciseTranslation | undefined
   target: Target
   sets: SetValues[]
   units: Units
+  /** La última vez que se hizo este ejercicio, sin contar hoy. */
+  previous?: PreviousSession | null
   expanded: boolean
   onToggleExpand: () => void
   onChangeSet: (index: number, patch: Partial<SetValues>) => void
   onToggleDone: (index: number) => void
   onSwap: () => void
+  /** Sin esto no se ofrece posponer: con un solo ejercicio no hay a dónde ir. */
+  onPostpone?: () => void
 }) {
   const [showHow, setShowHow] = useState(false)
   const catalog = getExercise(exercise.exercise_id)
@@ -49,12 +58,24 @@ export function ExerciseCard({
   const doneCount = sets.filter((s) => s.done).length
   const complete = sets.length > 0 && doneCount === sets.length
 
+  // Los discos solo tienen sentido en lo que se carga en barra.
+  const bar = isCardio ? 0 : barFor(catalog.equipment, units)
+  const plates = bar > 0 ? plateSet(units) : null
+
+  // Calentar es para lo pesado y multiarticular. Un curl de bíceps no necesita
+  // rampa, y ponerla convertiría una guía útil en ruido en todas las tarjetas.
+  const warmup =
+    !isCardio && catalog.mechanic === 'compound' ? warmupSets(target.weight, { bar }) : []
+
   const prescription = isCardio
     ? `${formatDuration(target.durationSeconds ?? 0)} min`
     : `${target.sets} × ${target.repRange ? target.repRange.join('-') : (exercise.target_reps ?? '')}`
 
   return (
-    <article className={cn('strip overflow-hidden', complete && !expanded && 'opacity-60')}>
+    <article
+      id={`ejercicio-${exercise.id}`}
+      className={cn('strip scroll-mt-20 overflow-hidden', complete && !expanded && 'opacity-60')}
+    >
       <h2>
         <button
           type="button"
@@ -137,9 +158,41 @@ export function ExerciseCard({
                   <Repeat2 className="size-4" aria-hidden />
                   Cambiar
                 </button>
+
+                {onPostpone && !complete && (
+                  <button
+                    type="button"
+                    onClick={onPostpone}
+                    className="flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 text-sm font-semibold active:bg-[var(--surface-2)]"
+                  >
+                    <ArrowDownToLine className="size-4" aria-hidden />
+                    Dejarlo para el final
+                  </button>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Lo que hiciste la última vez. Es el dato que de verdad se busca al
+              abrir un ejercicio: sin él no hay contra qué medir la serie de hoy. */}
+          {previous && previous.sets.length > 0 && (
+            <p className="rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm leading-snug">
+              <span className="eyebrow">La vez pasada · {formatDaysAgo(previous.daysAgo)}</span>
+              <br />
+              <span className="num text-base">{formatPreviousSets(previous.sets, units)}</span>
+            </p>
+          )}
+
+          {warmup.length > 0 && (
+            <p className="px-1 text-sm leading-snug text-[var(--fg-muted)]">
+              <span className="eyebrow">Calentamiento</span>
+              <br />
+              <span className="num">
+                {warmup.map((w) => `${w.weight} × ${w.reps}`).join('  ·  ')}
+              </span>
+              <span className="ml-1 text-xs">— no se registra</span>
+            </p>
+          )}
 
           <div className="flex flex-col gap-1.5">
             {sets.map((s, i) => (
@@ -149,6 +202,8 @@ export function ExerciseCard({
                 values={s}
                 isCardio={isCardio}
                 units={units}
+                previous={previous?.sets[i] ?? null}
+                plates={plates}
                 onChange={(patch) => onChangeSet(i, patch)}
                 onToggleDone={() => onToggleDone(i)}
               />
