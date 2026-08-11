@@ -44,6 +44,17 @@ export default {
       ? url.pathname.slice(BASE.length) || '/'
       : url.pathname
 
-    return env.ASSETS.fetch(new Request(assetUrl, req))
+    const response = await env.ASSETS.fetch(new Request(assetUrl, req))
+
+    // El binding no sabe nada del prefijo, así que cualquier redirección que
+    // emita apunta a la raíz del dominio. Se la devolvemos.
+    const location = response.headers.get('Location')
+    if (response.status >= 300 && response.status < 400 && location?.startsWith('/')) {
+      const headers = new Headers(response.headers)
+      headers.set('Location', `${BASE}${location}`)
+      return new Response(response.body, { status: response.status, headers })
+    }
+
+    return response
   },
 }

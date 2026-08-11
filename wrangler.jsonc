@@ -10,6 +10,14 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
 
+    // Sin canonicalización de rutas.
+    //
+    // Por defecto el router redirige /index.html -> / y emite el Location
+    // relativo a la URL ya SIN el prefijo /trainway, así que el navegador
+    // acababa en la raíz del dominio (el parking de Dondominio, que da 521).
+    // Eso rompía el precache del service worker y la PWA no se instalaba.
+    "html_handling": "none",
+
     // El código va primero, siempre.
     //
     // El router de assets de Cloudflare buscaría en `dist/trainway*`, pero el

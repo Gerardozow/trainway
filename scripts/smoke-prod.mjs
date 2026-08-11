@@ -78,6 +78,22 @@ try {
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
   paso('la app carga', (await page.title()) === 'Trainway')
 
+  // La PWA solo se puede comprobar contra el sitio desplegado: el service
+  // worker instalaba en localhost y fallaba en producción porque el router de
+  // assets redirigía /index.html fuera del subpath. Silencioso y total.
+  await page.waitForTimeout(6000)
+  const sw = await page.evaluate(async () => {
+    const regs = await navigator.serviceWorker.getRegistrations()
+    return { n: regs.length, estado: regs[0]?.active?.state ?? null }
+  })
+  paso('el service worker se instala', sw.n === 1 && sw.estado === 'activated', `${sw.n} registro, estado ${sw.estado}`)
+
+  const sinRedirigir = await page.evaluate(async (base) => {
+    const r = await fetch(`${base}/index.html`, { redirect: 'manual' })
+    return r.status
+  }, BASE)
+  paso('index.html se sirve sin redirigir', sinRedirigir === 200, `HTTP ${sinRedirigir}`)
+
   const fuente = await page.evaluate(() => document.fonts.check('700 28px Archivo'))
   paso('la tipografía de marca carga', fuente)
 
