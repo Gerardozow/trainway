@@ -133,10 +133,16 @@ try {
     .eq('user_id', userId)
   paso('el plan quedó guardado', (programas?.length ?? 0) > 0, programas?.[0]?.name ?? '')
 
+  const { data: programa } = await admin
+    .from('programs')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+
   const { count: dias } = await admin
     .from('program_days')
     .select('*', { count: 'exact', head: true })
-    .eq('program_id', (await admin.from('programs').select('id').eq('user_id', userId).single()).data.id)
+    .eq('program_id', programa.id)
   paso('mesociclo de 4 semanas', dias > 0, `${dias} días`)
 
   const { count: traducciones } = await admin
@@ -144,11 +150,29 @@ try {
     .select('*', { count: 'exact', head: true })
   paso('traducciones al español cacheadas', traducciones > 0, `${traducciones} ejercicios`)
 
-  // Entrar al entrenamiento del día, si hoy toca.
+  // Al entrenamiento. Si hoy toca descanso se abre igualmente un día del plan:
+  // el recorrido de la sesión es lo más importante que hay que verificar y no
+  // puede depender de qué día de la semana se despliegue.
   const empezar = page.getByRole('link', { name: /entrenamiento/i })
-  if ((await empezar.count()) > 0) {
-    await empezar.click()
-    await page.waitForURL(/\/sesion\//, { timeout: 20_000 })
+  const hoyToca = (await empezar.count()) > 0
+
+  if (!hoyToca) {
+    const { data: primerDia } = await admin
+      .from('program_days')
+      .select('id')
+      .eq('program_id', programa.id)
+      .eq('week', 1)
+      .order('day_index')
+      .limit(1)
+    if (primerDia?.[0]) await page.goto(`${BASE}/sesion/${primerDia[0].id}`, { waitUntil: 'networkidle' })
+    paso('hoy toca descanso: se abre un día del plan', Boolean(primerDia?.[0]))
+  }
+
+  if (hoyToca || page.url().includes('/sesion/')) {
+    if (hoyToca) {
+      await empezar.click()
+      await page.waitForURL(/\/sesion\//, { timeout: 20_000 })
+    }
     await page.waitForTimeout(2500)
     await page.screenshot({ path: `${OUT}/prod-sesion.png`, fullPage: true })
 
@@ -239,9 +263,47 @@ try {
         paso('la sesión anterior se muestra', vezPasada > 0 && cifras > 0, `${vezPasada} referencia(s)`)
         await page.screenshot({ path: `${OUT}/prod-sesion-historial.png`, fullPage: true })
       }
+
+      // --- Sin señal ---------------------------------------------------------
+      //
+      // El caso real: llegas al gimnasio, el sótano no tiene cobertura y abres
+      // la app. Antes esto era una pantalla de error; el día ya estaba
+      // guardado, pero la sesión se pedía a la red.
+      const { count: antesOffline } = await admin
+        .from('set_logs')
+        .select('*', { count: 'exact', head: true })
+
+      await ctx.setOffline(true)
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(4000)
+
+      const avisoSinRed = await page.getByText(/Sin conexión/).count()
+      const checksSinRed = page.getByRole('button', { name: /^Marcar serie/ })
+      const nSinRed = await checksSinRed.count()
+      paso('la sesión abre sin red', avisoSinRed > 0 && nSinRed > 0, `${nSinRed} series`)
+      await page.screenshot({ path: `${OUT}/prod-sesion-offline.png`, fullPage: true })
+
+      if (nSinRed > 0) {
+        await checksSinRed.first().click()
+        await page.waitForTimeout(800)
+        paso(
+          'se marcan series sin red',
+          (await page.getByRole('button', { name: /^Desmarcar serie/ }).count()) > 0,
+        )
+      }
+
+      await ctx.setOffline(false)
+      await page.waitForTimeout(10_000)
+
+      const { count: despuesOffline } = await admin
+        .from('set_logs')
+        .select('*', { count: 'exact', head: true })
+      paso(
+        'al volver la señal se sube lo de sin red',
+        despuesOffline > antesOffline,
+        `${antesOffline} -> ${despuesOffline}`,
+      )
     }
-  } else {
-    paso('hoy toca descanso, sesión no probada', true)
   }
 
   // --- Pantallas nuevas -----------------------------------------------------
@@ -268,7 +330,10 @@ try {
   const ignorables = /favicon|manifest|sw\.js|\.map$/
   const relevantes = fallos.filter((f) => !ignorables.test(f))
   paso('sin peticiones fallidas', relevantes.length === 0, relevantes.slice(0, 3).join(' | '))
-  paso('sin errores de JavaScript', errores.length === 0, errores.slice(0, 2).join(' | '))
+
+  // Los cortes de red son parte de la prueba: se provocan a propósito.
+  const propios = errores.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to fetch/i.test(e))
+  paso('sin errores de JavaScript', propios.length === 0, propios.slice(0, 2).join(' | '))
 } catch (err) {
   paso('EXCEPCIÓN', false, err?.message?.split('\n')[0]?.slice(0, 160) ?? String(err))
   try {

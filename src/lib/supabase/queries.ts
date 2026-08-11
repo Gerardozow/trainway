@@ -17,11 +17,26 @@ function unwrap<T>({ data, error }: { data: T | null; error: unknown }): T {
   return data as T
 }
 
+/**
+ * Igual que `unwrap`, pero "no hay fila" es una respuesta válida.
+ *
+ * Lo importante es que un fallo SÍ se lanza. supabase-js devuelve
+ * `{ data: null, error }` cuando la petición no llega a salir, así que ignorar
+ * `error` convierte "el móvil no tiene señal" en "ese día no existe" — y con
+ * eso la app enviaba al cuestionario o daba "no encontramos ese entrenamiento"
+ * en vez de tirar de lo que ya estaba descargado.
+ */
+function unwrapMaybe<T>({ data, error }: { data: T | null; error: unknown }): T | null {
+  if (error) throw error instanceof Error ? error : new Error(String(error))
+  return data
+}
+
 // --- Perfil -----------------------------------------------------------------
 
 export async function getProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
-  return data as Profile | null
+  return unwrapMaybe(
+    await supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+  ) as Profile | null
 }
 
 export async function updateProfile(userId: string, patch: Partial<Profile>): Promise<void> {
@@ -37,13 +52,14 @@ export async function createIntake(
 }
 
 export async function getActiveProgram(userId: string): Promise<Program | null> {
-  const { data } = await supabase
-    .from('programs')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle()
-  return data as Program | null
+  return unwrapMaybe(
+    await supabase
+      .from('programs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle(),
+  ) as Program | null
 }
 
 export async function getProgramDays(programId: string): Promise<ProgramDay[]> {
@@ -58,11 +74,9 @@ export async function getProgramDays(programId: string): Promise<ProgramDay[]> {
 }
 
 export async function getDayWithExercises(programDayId: string): Promise<DayWithExercises | null> {
-  const { data: day } = await supabase
-    .from('program_days')
-    .select('*')
-    .eq('id', programDayId)
-    .maybeSingle()
+  const day = unwrapMaybe(
+    await supabase.from('program_days').select('*').eq('id', programDayId).maybeSingle(),
+  )
   if (!day) return null
 
   const exercises = unwrap(
@@ -93,14 +107,15 @@ export async function getSessionFor(
   programDayId: string,
   date = todayISO(),
 ): Promise<WorkoutSession | null> {
-  const { data } = await supabase
-    .from('workout_sessions')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('program_day_id', programDayId)
-    .eq('performed_on', date)
-    .maybeSingle()
-  return data as WorkoutSession | null
+  return unwrapMaybe(
+    await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('program_day_id', programDayId)
+      .eq('performed_on', date)
+      .maybeSingle(),
+  ) as WorkoutSession | null
 }
 
 /** Idempotente: si ya existe la sesión de ese día, la devuelve en vez de fallar. */
@@ -169,13 +184,15 @@ export async function getHistoryFor(
 ): Promise<Record<string, SetLog[]>> {
   if (exerciseIds.length === 0) return {}
 
-  const { data } = await supabase
-    .from('set_logs')
-    .select('*, program_exercises!inner(exercise_id)')
-    .in('program_exercises.exercise_id', exerciseIds)
-    .eq('done', true)
-    .order('logged_at', { ascending: false })
-    .limit(limitPerExercise * exerciseIds.length)
+  const data = unwrapMaybe(
+    await supabase
+      .from('set_logs')
+      .select('*, program_exercises!inner(exercise_id)')
+      .in('program_exercises.exercise_id', exerciseIds)
+      .eq('done', true)
+      .order('logged_at', { ascending: false })
+      .limit(limitPerExercise * exerciseIds.length),
+  )
 
   const rows = (data ?? []) as (SetLog & { program_exercises: { exercise_id: string } })[]
   const grouped: Record<string, SetLog[]> = {}
@@ -195,11 +212,13 @@ export async function getTranslations(
 ): Promise<Record<string, ExerciseTranslation>> {
   if (exerciseIds.length === 0) return {}
 
-  const { data } = await supabase
-    .from('exercise_translations')
-    .select('*')
-    .eq('locale', locale)
-    .in('exercise_id', exerciseIds)
+  const data = unwrapMaybe(
+    await supabase
+      .from('exercise_translations')
+      .select('*')
+      .eq('locale', locale)
+      .in('exercise_id', exerciseIds),
+  )
 
   const map: Record<string, ExerciseTranslation> = {}
   for (const t of (data ?? []) as ExerciseTranslation[]) map[t.exercise_id] = t
@@ -241,19 +260,21 @@ export async function swapExercise(args: {
   }
 
   // Mismo día de la semana, misma posición, todas las semanas del bloque.
-  const { data: day } = await supabase
-    .from('program_days')
-    .select('program_id, day_index')
-    .eq('id', programDayId)
-    .single()
-  if (!day) return
+  const day = unwrap(
+    await supabase
+      .from('program_days')
+      .select('program_id, day_index')
+      .eq('id', programDayId)
+      .single(),
+  ) as { program_id: string; day_index: number }
 
-  const { data: current } = await supabase
-    .from('program_exercises')
-    .select('position')
-    .eq('id', programExerciseId)
-    .single()
-  if (!current) return
+  const current = unwrap(
+    await supabase
+      .from('program_exercises')
+      .select('position')
+      .eq('id', programExerciseId)
+      .single(),
+  ) as { position: number }
 
   const dayIds = unwrap(
     await supabase
@@ -275,12 +296,13 @@ export async function swapExercise(args: {
 
 /** El cuestionario más reciente: de ahí sale el equipamiento disponible. */
 export async function getLatestIntake(userId: string): Promise<Intake | null> {
-  const { data } = await supabase
-    .from('intakes')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  return data as Intake | null
+  return unwrapMaybe(
+    await supabase
+      .from('intakes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ) as Intake | null
 }

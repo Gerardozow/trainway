@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, CloudOff } from 'lucide-react'
 import { useAuth } from '@/lib/supabase/useAuth'
 import {
   getDayWithExercises,
@@ -9,17 +9,31 @@ import {
   getLatestIntake,
   getProfile,
   getTranslations,
-  startSession,
-  completeSession,
   swapExercise,
 } from '@/lib/supabase/queries'
 import { translateExercises } from '@/lib/api'
 import { SwapSheet, type SwapScope } from '@/components/SwapSheet'
 import type { Exercise } from '@/lib/catalog'
-import { db, enqueueSet, localSetsForSession, scheduleFlush, syncNow } from '@/lib/offline'
+import type {
+  DayWithExercises,
+  ExerciseTranslation,
+  Intake,
+  Profile,
+  SetLog,
+} from '@/lib/supabase/types'
+import {
+  completeSessionLocal,
+  db,
+  enqueueSet,
+  localSetsForSession,
+  resolveSession,
+  scheduleFlush,
+  syncNow,
+} from '@/lib/offline'
 import { targetFor } from '@/lib/useSessionTargets'
 import { CALIBRATION_NOTE } from '@/lib/progression'
 import { previousSession } from '@/lib/history'
+import { raceWithFallback } from '@/lib/net'
 import { loadRest, saveRest, type RestState } from '@/lib/rest'
 import { loadSettings } from '@/lib/settings'
 import { useWakeLock } from '@/lib/useWakeLock'
@@ -31,6 +45,75 @@ import { Button, Spinner, Textarea } from '@/components/ui'
 import { Stepper } from '@/components/ui'
 
 type SetsByExercise = Record<string, SetValues[]>
+
+/**
+ * "Ese día no existe" no es lo mismo que "no hay red".
+ *
+ * Sin distinguirlo, un id inventado en la barra de direcciones acabaría
+ * buscando en la caché local y enseñando el entrenamiento de otro día.
+ */
+class NotFound extends Error {}
+
+type SessionData = {
+  day: DayWithExercises
+  sessionId: string
+  history: Record<string, SetLog[]>
+  translations: Record<string, ExerciseTranslation>
+  profile: Profile | null
+  intake: Intake | null
+  offline: boolean
+}
+
+async function loadDayFromNetwork(programDayId: string, userId: string): Promise<SessionData> {
+  const day = await getDayWithExercises(programDayId)
+  if (!day) throw new NotFound('No encontramos ese entrenamiento.')
+
+  const exerciseIds = day.exercises.map((e) => e.exercise_id)
+
+  const [session, history, translations, profile, intake] = await Promise.all([
+    resolveSession(userId, programDayId),
+    getHistoryFor(exerciseIds),
+    getTranslations(exerciseIds),
+    getProfile(userId),
+    getLatestIntake(userId),
+  ])
+
+  // Se guarda el día completo para que el entreno siga funcionando sin señal.
+  await db.cachedDays.put({
+    programDayId,
+    day,
+    history,
+    translations,
+    profile,
+    intake,
+    cachedAt: new Date().toISOString(),
+  })
+
+  return { day, sessionId: session.id, history, translations, profile, intake, offline: false }
+}
+
+/**
+ * El entrenamiento tal y como se descargó la última vez.
+ *
+ * La sesión se resuelve sin tocar la red —ya se sabe que no contesta— y, si no
+ * había ninguna empezada, se crea con un id generado aquí que se sube después.
+ */
+async function loadCachedDay(programDayId: string, userId: string): Promise<SessionData | null> {
+  const cached = await db.cachedDays.get(programDayId)
+  if (!cached) return null
+
+  const session = await resolveSession(userId, programDayId, { allowNetwork: false })
+
+  return {
+    day: cached.day,
+    sessionId: session.id,
+    history: cached.history,
+    translations: cached.translations ?? {},
+    profile: cached.profile ?? null,
+    intake: cached.intake ?? null,
+    offline: true,
+  }
+}
 
 /** La cabecera es fija: sin el margen, el título del ejercicio queda debajo. */
 const SCROLL_OFFSET = 72
@@ -78,30 +161,13 @@ export function Session() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['session', programDayId, user?.id],
     enabled: Boolean(user && programDayId),
-    queryFn: async () => {
-      const day = await getDayWithExercises(programDayId)
-      if (!day) throw new Error('No encontramos ese entrenamiento.')
-
-      const session = await startSession(user!.id, programDayId)
-      const exerciseIds = day.exercises.map((e) => e.exercise_id)
-
-      const [history, translations, profile, intake] = await Promise.all([
-        getHistoryFor(exerciseIds),
-        getTranslations(exerciseIds),
-        getProfile(user!.id),
-        getLatestIntake(user!.id),
-      ])
-
-      // Se guarda el día completo para que el entreno siga funcionando sin señal.
-      await db.cachedDays.put({
-        programDayId,
-        day,
-        history,
-        cachedAt: new Date().toISOString(),
-      })
-
-      return { day, session, history, translations, profile, intake }
-    },
+    queryFn: () =>
+      raceWithFallback({
+        network: loadDayFromNetwork(programDayId, user!.id),
+        fallback: () => loadCachedDay(programDayId, user!.id),
+        // Un id que no existe tiene que fallar de verdad, no caer en la caché.
+        rethrow: (err) => err instanceof NotFound,
+      }),
   })
 
   /**
@@ -145,7 +211,7 @@ export function Session() {
     if (!data) return
 
     void (async () => {
-      const local = await localSetsForSession(data.session.id)
+      const local = await localSetsForSession(data.sessionId)
 
       setSets(
         Object.fromEntries(
@@ -179,7 +245,7 @@ export function Session() {
   async function persist(exerciseId: string, index: number, values: SetValues) {
     if (!data) return
     await enqueueSet({
-      sessionId: data.session.id,
+      sessionId: data.sessionId,
       programExerciseId: exerciseId,
       setIndex: index,
       done: values.done,
@@ -320,8 +386,10 @@ export function Session() {
     if (!data) return
     setFinishing(true)
     setRest(null)
-    await completeSession(data.session.id, {
-      session_rpe: sessionRpe,
+    // Se cierra en local y se sube con el resto de la cola: terminar el
+    // entrenamiento no puede depender de tener señal.
+    await completeSessionLocal(data.sessionId, {
+      sessionRpe: sessionRpe,
       notes: notes.trim() || null,
     })
     await syncNow()
@@ -387,6 +455,16 @@ export function Session() {
       </header>
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-3 px-3 py-3">
+        {data.offline && (
+          <p className="flex items-start gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm leading-snug">
+            <CloudOff className="mt-0.5 size-4 shrink-0 text-[var(--fg-muted)]" aria-hidden />
+            <span>
+              <strong>Sin conexión.</strong> Este entrenamiento estaba guardado en el móvil. Entrena
+              normal: todo lo que marques se sube solo en cuanto haya señal.
+            </span>
+          </p>
+        )}
+
         {Object.values(targets).some((t) => t?.note === CALIBRATION_NOTE) && (
           <p className="rounded-xl border-l-2 border-volt bg-[var(--surface)] px-4 py-3 text-sm leading-snug">
             <strong>Semana de calibración.</strong> Usa un peso donde las últimas 2 repeticiones

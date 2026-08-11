@@ -1,6 +1,17 @@
-import { db, type PendingSet } from './db'
+import { db, type PendingSession, type PendingSet } from './db'
 
 const BATCH_SIZE = 50
+
+export type SessionRow = {
+  id: string
+  user_id: string
+  program_day_id: string
+  performed_on: string
+  started_at: string
+  completed_at: string | null
+  session_rpe: number | null
+  notes: string | null
+}
 
 export type SetLogRow = {
   session_id: string
@@ -21,6 +32,31 @@ export type SetLogRow = {
 /** Lo mínimo que la cola necesita del cliente de Supabase. Facilita el test. */
 export type SyncTarget = {
   upsertSetLogs: (rows: SetLogRow[]) => Promise<{ error: unknown }>
+  /** Crea o actualiza la sesión con el id que decidió el móvil. */
+  upsertSessions: (rows: SessionRow[]) => Promise<{ error: unknown }>
+  /**
+   * El id que ya tiene la base para ese día. Se consulta solo cuando el alta
+   * choca con la restricción única, es decir, cuando otro dispositivo se
+   * adelantó a crear la misma sesión.
+   */
+  findSessionId: (
+    userId: string,
+    programDayId: string,
+    performedOn: string,
+  ) => Promise<string | null>
+}
+
+function toSessionRow(s: PendingSession): SessionRow {
+  return {
+    id: s.id,
+    user_id: s.userId,
+    program_day_id: s.programDayId,
+    performed_on: s.performedOn,
+    started_at: s.startedAt,
+    completed_at: s.completedAt,
+    session_rpe: s.sessionRpe,
+    notes: s.notes,
+  }
 }
 
 function toRow(p: PendingSet): SetLogRow {
@@ -63,6 +99,88 @@ export async function enqueueSet(entry: Omit<PendingSet, 'clientId' | 'synced'>)
   })
 }
 
+// --- Sesiones ---------------------------------------------------------------
+
+/** La sesión de ese día, esté subida o no. */
+export async function getLocalSession(
+  programDayId: string,
+  performedOn: string,
+): Promise<PendingSession | undefined> {
+  return db.pendingSessions
+    .where('[programDayId+performedOn]')
+    .equals([programDayId, performedOn])
+    .first()
+}
+
+export async function saveLocalSession(session: PendingSession): Promise<void> {
+  await db.pendingSessions.put(session)
+}
+
+/** Cambios sobre la sesión ya empezada: cerrarla, su esfuerzo, sus notas. */
+export async function patchLocalSession(
+  id: string,
+  patch: Partial<Omit<PendingSession, 'id'>>,
+): Promise<void> {
+  await db.transaction('rw', db.pendingSessions, async () => {
+    const current = await db.pendingSessions.get(id)
+    if (!current) return
+    await db.pendingSessions.put({ ...current, ...patch, synced: 0 })
+  })
+}
+
+function isDuplicate(error: unknown): boolean {
+  const e = error as { code?: string; message?: string }
+  return e?.code === '23505' || /duplicate key|unique constraint/i.test(e?.message ?? '')
+}
+
+/**
+ * Sube las sesiones creadas sin red.
+ *
+ * Devuelve los ids que NO llegaron: sus series se quedan en cola porque la
+ * clave foránea las rechazaría.
+ *
+ * El caso interesante es el choque: la base ya tiene una sesión para ese día
+ * porque se empezó desde otro dispositivo. Ahí gana la que ya existe y las
+ * series de aquí se reapuntan a su id — perder el registro sería mucho peor que
+ * perder el identificador local.
+ */
+export async function flushSessions(target: SyncTarget): Promise<Set<string>> {
+  const pending = await db.pendingSessions.where('synced').equals(0).toArray()
+  const blocked = new Set<string>()
+
+  for (const session of pending) {
+    const { error } = await target.upsertSessions([toSessionRow(session)])
+
+    if (!error) {
+      await db.pendingSessions.put({ ...session, synced: 1 })
+      continue
+    }
+
+    if (!isDuplicate(error)) {
+      blocked.add(session.id)
+      continue
+    }
+
+    const remoteId = await target
+      .findSessionId(session.userId, session.programDayId, session.performedOn)
+      .catch(() => null)
+
+    if (!remoteId || remoteId === session.id) {
+      blocked.add(session.id)
+      continue
+    }
+
+    await db.transaction('rw', db.pendingSets, db.pendingSessions, async () => {
+      const mine = await db.pendingSets.where('sessionId').equals(session.id).toArray()
+      await db.pendingSets.bulkPut(mine.map((s) => ({ ...s, sessionId: remoteId })))
+      await db.pendingSessions.delete(session.id)
+      await db.pendingSessions.put({ ...session, id: remoteId, synced: 1 })
+    })
+  }
+
+  return blocked
+}
+
 /**
  * Sube lo pendiente. Nunca lanza: si no hay red, los registros se quedan en
  * cola y el próximo intento los recoge.
@@ -71,8 +189,14 @@ export async function enqueueSet(entry: Omit<PendingSet, 'clientId' | 'synced'>)
  * la red, para que dos vaciados concurrentes no manden lo mismo dos veces.
  */
 export async function flushQueue(target: SyncTarget): Promise<{ synced: number; failed: number }> {
+  // Primero las sesiones: una serie sin su sesión en la base no tiene dónde
+  // colgarse.
+  const blocked = await flushSessions(target)
+
   const claimed = await db.transaction('rw', db.pendingSets, async () => {
-    const pending = await db.pendingSets.where('synced').equals(0).toArray()
+    const pending = (await db.pendingSets.where('synced').equals(0).toArray()).filter(
+      (p) => !blocked.has(p.sessionId),
+    )
     if (pending.length === 0) return []
     await db.pendingSets.bulkPut(pending.map((p) => ({ ...p, synced: 1 })))
     return pending

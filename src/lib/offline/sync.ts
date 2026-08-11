@@ -1,5 +1,11 @@
 import { supabase } from '@/lib/supabase/client'
-import { flushQueue, pendingCount, type SetLogRow, type SyncTarget } from './queue'
+import {
+  flushQueue,
+  pendingCount,
+  type SessionRow,
+  type SetLogRow,
+  type SyncTarget,
+} from './queue'
 
 const POLL_MS = 30_000
 const MAX_BACKOFF_MS = 5 * 60_000
@@ -9,6 +15,25 @@ export const supabaseTarget: SyncTarget = {
   async upsertSetLogs(rows: SetLogRow[]) {
     const { error } = await supabase.from('set_logs').upsert(rows, { onConflict: 'client_id' })
     return { error }
+  },
+
+  async upsertSessions(rows: SessionRow[]) {
+    // Por id: el móvil lo eligió, así que reintentar es idempotente. Un choque
+    // con la restricción (usuario, día, fecha) sale como error y lo resuelve la
+    // cola reapuntando las series.
+    const { error } = await supabase.from('workout_sessions').upsert(rows, { onConflict: 'id' })
+    return { error }
+  },
+
+  async findSessionId(userId, programDayId, performedOn) {
+    const { data } = await supabase
+      .from('workout_sessions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('program_day_id', programDayId)
+      .eq('performed_on', performedOn)
+      .maybeSingle()
+    return (data as { id: string } | null)?.id ?? null
   },
 }
 

@@ -62,6 +62,24 @@ test('editar el peso abre el stepper y guarda el valor', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Editar peso' }).first()).toContainText('kg')
 })
 
+test('la sesión se abre de cero sin red, con lo que quedó guardado', async ({ page, context }) => {
+  await entrar(page)
+  const empezar = page.getByRole('link', { name: /entrenamiento/i })
+  test.skip((await empezar.count()) === 0, 'Hoy toca descanso')
+  await empezar.click()
+  await page.waitForURL('**/sesion/**')
+  await expect(page.getByRole('button', { name: /^Marcar serie/ }).first()).toBeVisible()
+
+  // Se recarga sin red: nada de esto sale del móvil.
+  await context.setOffline(true)
+  await page.reload()
+
+  await expect(page.getByText(/Sin conexión/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: /^Marcar serie/ }).first()).toBeVisible()
+
+  await context.setOffline(false)
+})
+
 test('sin red la sesión sigue funcionando y luego sincroniza sin duplicar', async ({
   page,
   context,

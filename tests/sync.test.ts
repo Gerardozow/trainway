@@ -19,9 +19,16 @@ const entry = (over: Partial<PendingSet> = {}): Omit<PendingSet, 'clientId' | 's
   ...over,
 })
 
-const okClient = () => ({ upsertSetLogs: vi.fn().mockResolvedValue({ error: null }) })
+const okClient = () => ({
+  upsertSetLogs: vi.fn().mockResolvedValue({ error: null }),
+  upsertSessions: vi.fn().mockResolvedValue({ error: null }),
+  findSessionId: vi.fn().mockResolvedValue(null),
+})
+
 const failClient = () => ({
   upsertSetLogs: vi.fn().mockResolvedValue({ error: new Error('sin red') }),
+  upsertSessions: vi.fn().mockResolvedValue({ error: null }),
+  findSessionId: vi.fn().mockResolvedValue(null),
 })
 
 describe('cola de sincronización', () => {
@@ -136,6 +143,7 @@ describe('cola de sincronización', () => {
   it('si un lote falla, los demás sí se suben', async () => {
     for (let i = 0; i < 60; i++) await enqueueSet(entry({ setIndex: i }))
     const client = {
+      ...okClient(),
       upsertSetLogs: vi
         .fn()
         .mockResolvedValueOnce({ error: new Error('falla el primero') })

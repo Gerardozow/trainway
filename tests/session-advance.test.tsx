@@ -65,9 +65,11 @@ vi.mock('@/lib/supabase/queries', () => ({
 }))
 
 vi.mock('@/lib/offline', () => ({
-  db: { cachedDays: { put: vi.fn() } },
+  db: { cachedDays: { put: vi.fn(), get: vi.fn(async () => undefined) } },
   enqueueSet: vi.fn(),
   localSetsForSession: vi.fn(async () => []),
+  resolveSession: vi.fn(async () => ({ id: 'sesion1', offline: false })),
+  completeSessionLocal: vi.fn(),
   scheduleFlush: vi.fn(),
   syncNow: vi.fn(async () => ({ synced: 0, failed: 0 })),
   startSync: vi.fn(() => () => {}),

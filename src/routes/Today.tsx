@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, ChevronRight } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CloudOff } from 'lucide-react'
 import { useAuth } from '@/lib/supabase/useAuth'
 import {
   currentWeek,
@@ -20,46 +20,23 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { SyncIndicator } from '@/components/SyncIndicator'
 import { ExerciseImage } from '@/components/ExerciseImage'
 import { InstallBanner } from '@/components/InstallCard'
+import { db } from '@/lib/offline'
+import { raceWithFallback } from '@/lib/net'
 
 export function Today() {
   const { user } = useAuth()
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['today', user?.id],
     enabled: Boolean(user),
-    queryFn: async () => {
-      const program = await getActiveProgram(user!.id)
-      if (!program) return { program: null }
-
-      const days = await getProgramDays(program.id)
-      const week = currentWeek(program)
-      const todayIndex = isoDayIndex()
-
-      const day = days.find((d) => d.week === week && d.day_index === todayIndex) ?? null
-      const sessions = await getSessionsForProgram(
-        user!.id,
-        days.map((d) => d.id),
-      )
-
-      let exercises: ProgramExercise[] = []
-      let translations = {}
-
-      if (day) {
-        const { data: rows } = await supabase
-          .from('program_exercises')
-          .select('*')
-          .eq('program_day_id', day.id)
-          .order('position')
-        exercises = (rows ?? []) as ProgramExercise[]
-        translations = await getTranslations(exercises.map((e) => e.exercise_id))
-      }
-
-      const upcoming = days
-        .filter((d) => d.week === week && d.day_index > todayIndex)
-        .sort((a, b) => a.day_index - b.day_index)
-
-      return { program, week, day, exercises, translations, sessions, upcoming }
-    },
+    // Lo que se vio la última vez es infinitamente mejor que una pantalla de
+    // error, sobre todo cuando lo único que hace falta es el botón de empezar
+    // el entrenamiento, que ya está descargado.
+    queryFn: () =>
+      raceWithFallback({
+        network: loadToday(user!.id),
+        fallback: () => loadCachedToday(user!.id),
+      }),
   })
 
   if (isLoading) {
@@ -70,10 +47,69 @@ export function Today() {
     )
   }
 
+  if (error || !data) {
+    return (
+      <EmptyState
+        title="Sin conexión"
+        body="No pudimos cargar tu plan y todavía no hay nada guardado en este dispositivo. Conéctate un momento y vuelve."
+      />
+    )
+  }
+
+  return <TodayView data={data} isFetching={isFetching} />
+}
+
+type TodayData = Awaited<ReturnType<typeof loadToday>>
+
+async function loadCachedToday(userId: string): Promise<TodayData | null> {
+  const cached = await db.cachedToday.get(userId)
+  if (!cached) return null
+  return { ...(cached.payload as TodayData), offline: true }
+}
+
+async function loadToday(userId: string) {
+  const program = await getActiveProgram(userId)
+  if (!program) return { program: null, offline: false }
+
+  const days = await getProgramDays(program.id)
+  const week = currentWeek(program)
+  const todayIndex = isoDayIndex()
+
+  const day = days.find((d) => d.week === week && d.day_index === todayIndex) ?? null
+  const sessions = await getSessionsForProgram(
+    userId,
+    days.map((d) => d.id),
+  )
+
+  let exercises: ProgramExercise[] = []
+  let translations = {}
+
+  if (day) {
+    const { data: rows } = await supabase
+      .from('program_exercises')
+      .select('*')
+      .eq('program_day_id', day.id)
+      .order('position')
+    exercises = (rows ?? []) as ProgramExercise[]
+    translations = await getTranslations(exercises.map((e) => e.exercise_id))
+  }
+
+  const upcoming = days
+    .filter((d) => d.week === week && d.day_index > todayIndex)
+    .sort((a, b) => a.day_index - b.day_index)
+
+  const payload = { program, week, day, exercises, translations, sessions, upcoming, offline: false }
+
+  await db.cachedToday.put({ userId, payload, cachedAt: new Date().toISOString() })
+
+  return payload
+}
+
+function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean }) {
   // Sin plan activo, el sitio del usuario es el wizard. Pero solo cuando la
   // respuesta es fresca: redirigir con datos en vuelo manda al cuestionario a
   // quien acaba de crear su plan.
-  if (data && !data.program) {
+  if (!data.program) {
     if (isFetching) {
       return (
         <div className="grid flex-1 place-items-center">
@@ -84,7 +120,7 @@ export function Today() {
     return <Navigate to="/empezar" replace />
   }
 
-  const { program, week, day, exercises = [], translations = {}, sessions = [], upcoming = [] } = data!
+  const { program, week, day, exercises = [], translations = {}, sessions = [], upcoming = [] } = data
   const todaySession = day ? sessions.find((s) => s.program_day_id === day.id && s.performed_on === todayISO()) : null
   const isDone = Boolean(todaySession?.completed_at)
 
@@ -104,6 +140,13 @@ export function Today() {
       </header>
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-4 px-4 py-6">
+        {data.offline && (
+          <p className="flex items-center gap-2 text-sm text-[var(--fg-muted)]">
+            <CloudOff className="size-4 shrink-0" aria-hidden />
+            Sin conexión. Esto es lo último que descargamos.
+          </p>
+        )}
+
         <InstallBanner />
 
         {!day ? (
