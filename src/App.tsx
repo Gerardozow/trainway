@@ -27,14 +27,23 @@ const Progress = lazyWithRetry(() =>
 /** La sesión activa y el wizard ocupan toda la pantalla: sin navegación abajo. */
 const FULLSCREEN = ['/sesion/', '/empezar', '/entrar']
 
+/**
+ * Aquí recargar interrumpe algo a medias: un entrenamiento o el cuestionario.
+ *
+ * La pantalla de entrar no está en la lista aunque también ocupe todo: ahí no
+ * hay nada que perder, y es donde más gente llega con la versión vieja.
+ */
+const NO_INTERRUMPIR = ['/sesion/', '/empezar']
+
 function Shell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const bare = FULLSCREEN.some((p) => pathname.startsWith(p))
+  const puedeAvisar = !NO_INTERRUMPIR.some((p) => pathname.startsWith(p))
 
   return (
     <div className="flex min-h-dvh flex-col">
       {children}
-      <AppUpdatePrompt enabled={!bare} />
+      <AppUpdatePrompt enabled={puedeAvisar} aboveNav={!bare} />
       {!bare && <BottomNav />}
     </div>
   )

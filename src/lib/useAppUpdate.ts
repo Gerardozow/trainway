@@ -9,6 +9,9 @@ import { registerSW } from 'virtual:pwa-register'
  */
 export const UPDATE_CHECK_MS = 60 * 60 * 1000
 
+/** Cuánto se le da al cambio de controlador antes de recargar a mano. */
+export const RELOAD_FALLBACK_MS = 2500
+
 export type AppUpdate = {
   /** Hay una versión descargada esperando a que se acepte. */
   ready: boolean
@@ -70,9 +73,17 @@ export function useAppUpdate(): AppUpdate {
 
   const apply = useCallback(() => {
     setApplying(true)
-    // La recarga la dispara el propio registro al tomar el control; aquí no
-    // hace falta esperar nada.
     void updateRef.current?.(true)
+
+    /*
+     * La recarga normal la dispara el cambio de controlador, pero solo cuenta
+     * como actualización si YA había un service worker mandando cuando se
+     * registró. En la primera visita no lo hay: el aviso salía, se aceptaba y
+     * no pasaba nada. Esto lo cierra sin depender de ese detalle.
+     *
+     * Si la recarga buena llega antes, esta se va con la página.
+     */
+    setTimeout(() => window.location.reload(), RELOAD_FALLBACK_MS)
   }, [])
 
   const dismiss = useCallback(() => setDismissed(true), [])

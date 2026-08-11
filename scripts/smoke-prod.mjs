@@ -304,9 +304,18 @@ try {
       // El caso real: llegas al gimnasio, el sótano no tiene cobertura y abres
       // la app. Antes esto era una pantalla de error; el día ya estaba
       // guardado, pero la sesión se pedía a la red.
-      const { count: antesOffline } = await admin
-        .from('set_logs')
-        .select('*', { count: 'exact', head: true })
+      // Se cuentan las series HECHAS, no las filas. Ajustar la carga ya deja
+      // escrita la fila de cada serie pendiente con `done: false`, así que
+      // marcarla después la actualiza en vez de insertarla: el total de filas
+      // no se mueve aunque la sincronización haya funcionado.
+      const hechas = async () => {
+        const { count } = await admin
+          .from('set_logs')
+          .select('*', { count: 'exact', head: true })
+          .eq('done', true)
+        return count
+      }
+      const antesOffline = await hechas()
 
       await ctx.setOffline(true)
       await page.reload({ waitUntil: 'domcontentloaded' })
@@ -330,9 +339,7 @@ try {
       await ctx.setOffline(false)
       await page.waitForTimeout(10_000)
 
-      const { count: despuesOffline } = await admin
-        .from('set_logs')
-        .select('*', { count: 'exact', head: true })
+      const despuesOffline = await hechas()
       paso(
         'al volver la señal se sube lo de sin red',
         despuesOffline > antesOffline,

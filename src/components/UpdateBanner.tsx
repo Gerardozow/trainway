@@ -1,6 +1,7 @@
 import { ArrowUpCircle, X } from 'lucide-react'
 import { Button, Spinner } from '@/components/ui'
 import { useAppUpdate } from '@/lib/useAppUpdate'
+import { cn } from '@/lib/utils'
 
 /**
  * "Hay una versión nueva".
@@ -10,17 +11,25 @@ import { useAppUpdate } from '@/lib/useAppUpdate'
  */
 export function UpdateBanner({
   applying,
+  aboveNav = true,
   onApply,
   onDismiss,
 }: {
   applying: boolean
+  /** Deja hueco a la navegación de abajo, que no está en todas las pantallas. */
+  aboveNav?: boolean
   onApply: () => void
   onDismiss: () => void
 }) {
   return (
     <div
       role="status"
-      className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 px-3 pb-2"
+      className={cn(
+        'fixed inset-x-0 z-20 px-3 pb-2',
+        aboveNav
+          ? 'bottom-[calc(3.5rem+env(safe-area-inset-bottom))]'
+          : 'bottom-[env(safe-area-inset-bottom)]',
+      )}
     >
       <div className="mx-auto flex max-w-lg items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 shadow-lg">
         <ArrowUpCircle className="size-5 shrink-0 text-volt-ink" aria-hidden />
@@ -55,8 +64,10 @@ export function UpdateBanner({
  * recarga interrumpe algo a medias, y la versión nueva puede esperar a que se
  * vuelva a Hoy.
  */
-export function AppUpdatePrompt({ enabled }: { enabled: boolean }) {
+export function AppUpdatePrompt({ enabled, aboveNav }: { enabled: boolean; aboveNav?: boolean }) {
   const { ready, apply, dismiss, applying } = useAppUpdate()
   if (!enabled || !ready) return null
-  return <UpdateBanner applying={applying} onApply={apply} onDismiss={dismiss} />
+  return (
+    <UpdateBanner applying={applying} aboveNav={aboveNav} onApply={apply} onDismiss={dismiss} />
+  )
 }

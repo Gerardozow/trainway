@@ -297,7 +297,15 @@ export function Session() {
     setSets((prev) => {
       const rows = (prev[exerciseId] ?? []).map((row, i) => {
         if (row.done) return row
+
         const next = { ...row, ...patch }
+        // Cada fila escrita es una entrada en la cola. Sin esta comprobación,
+        // abrir y cerrar el control encolaría todas las series por nada.
+        const changed = Object.keys(patch).some(
+          (k) => next[k as keyof SetValues] !== row[k as keyof SetValues],
+        )
+        if (!changed) return row
+
         void persist(exerciseId, i, next)
         return next
       })
