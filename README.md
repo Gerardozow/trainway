@@ -37,7 +37,7 @@ npm run dev
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo en `localhost:5173/trainway/` |
-| `npm test` | Vitest: 89 pruebas de lógica pura |
+| `npm test` | Vitest: 218 pruebas de lógica y componentes |
 | `npm run e2e` | Playwright en perfil móvil |
 | `npm run typecheck` | TypeScript en modo estricto |
 | `npm run build` | Compila a `dist/` |
@@ -69,6 +69,31 @@ Una ruta de Worker necesita que el nombre resuelva a través de Cloudflare — n
 `gzow.dev` ya tiene uno en el ápice (`A -> 31.214.178.55`, el parking de Dondominio), así que **no hay que tocar el DNS**. La ruta `gzow.dev/trainway*` se monta encima: Cloudflare la intercepta antes de llegar al parking y se la entrega al Worker. El resto del dominio sigue yendo donde iba.
 
 Si algún día se quita ese registro, hace falta sustituirlo por uno proxied cualquiera —`AAAA gzow.dev 100::` (la dirección de descarte de IPv6) es el patrón habitual para dominios sin origen.
+
+## Qué hay dentro de una sesión
+
+Es la pantalla que se usa de pie, con el móvil en una mano:
+
+- **La vez pasada.** Encima de cada ejercicio, lo que levantaste la última vez —"50 kg × 10 · 9 · 8"— y en el editor de cada serie, esa misma serie.
+- **Avance automático.** Al terminar un ejercicio se abre el siguiente y la pantalla va hasta él. Siempre hacia delante; solo vuelve atrás si ya no queda nada por delante.
+- **Discos por lado.** 62.5 kg se carga como 20 + 1.25. Solo aparece en lo que va a barra.
+- **Calentamiento.** Rampa hasta el peso de trabajo en los básicos. No se registra: es una guía, y por eso se calcula en vez de guardarse.
+- **Cambiar y posponer.** Cambiar ofrece alternativas para el mismo músculo con tu equipamiento; posponer manda el ejercicio al final del día sin tocar el plan.
+- **Descanso.** Arranca solo, se ajusta con −15 / +30, avisa con sonido y vibración (ambos se apagan desde Perfil) y sobrevive a recargar la página.
+
+## Sin conexión
+
+El día se guarda en IndexedDB al abrirlo, con sus traducciones. Después:
+
+- La sesión se crea con un **uuid generado en el móvil** cuando no hay red — las series necesitan un `session_id` al que apuntar y sin conexión no hay a quién pedírselo. La cola sube primero las sesiones y luego sus series, porque al revés la clave foránea las rechaza.
+- Si otro dispositivo ya había creado la sesión de ese día, gana la que existe y las series locales se reapuntan a su id.
+- Terminar el entrenamiento tampoco necesita red: se cierra en local y se sube con el resto.
+
+Dos detalles que cuesta descubrir y conviene no volver a tropezar:
+
+**supabase-js no lanza cuando la petición no sale.** Devuelve `{ data: null, error }`. Ignorar ese `error` convierte "el móvil no tiene señal" en "ese día no existe" — y con eso la app mandaba al cuestionario a alguien que sí tenía plan. `unwrapMaybe` en `queries.ts` los separa.
+
+**Esperar al error de red cuesta ocho segundos.** postgrest-js reintenta tres veces con espera creciente (1 s, 2 s, 4 s). Y `navigator.onLine` no sirve para adelantarse: en el wifi de un gimnasio sin salida a internet vale `true`. Por eso `raceWithFallback` corre la red contra la caché y se queda con lo primero que llegue.
 
 ## Decisiones que conviene conocer
 

@@ -17,11 +17,11 @@ export async function resolveSession(
   userId: string,
   programDayId: string,
   options: { date?: string; allowNetwork?: boolean } = {},
-): Promise<{ id: string; offline: boolean }> {
+): Promise<{ id: string; startedAt: string; offline: boolean }> {
   const { date = todayISO(), allowNetwork = true } = options
 
   const local = await getLocalSession(programDayId, date)
-  if (local) return { id: local.id, offline: local.synced === 0 }
+  if (local) return { id: local.id, startedAt: local.startedAt, offline: local.synced === 0 }
 
   // Cuando ya se sabe que la red no responde, ni se intenta: pedirla otra vez
   // solo suma la espera de los reintentos antes de acabar aquí mismo.
@@ -29,7 +29,7 @@ export async function resolveSession(
     try {
       const remote: WorkoutSession = await startSession(userId, programDayId, date)
       await saveLocalSession(toPending(remote, 1))
-      return { id: remote.id, offline: false }
+      return { id: remote.id, startedAt: remote.started_at, offline: false }
     } catch {
       // Sigue abajo con un id local.
     }
@@ -47,7 +47,7 @@ export async function resolveSession(
     synced: 0,
   }
   await saveLocalSession(session)
-  return { id: session.id, offline: true }
+  return { id: session.id, startedAt: session.startedAt, offline: true }
 }
 
 function toPending(session: WorkoutSession, synced: 0 | 1): PendingSession {

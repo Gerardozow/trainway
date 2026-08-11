@@ -39,6 +39,7 @@ import { loadSettings } from '@/lib/settings'
 import { useWakeLock } from '@/lib/useWakeLock'
 import { ExerciseCard } from '@/components/ExerciseCard'
 import type { SetValues } from '@/components/SetRow'
+import { Elapsed } from '@/components/Elapsed'
 import { RestTimer } from '@/components/RestTimer'
 import { SyncIndicator } from '@/components/SyncIndicator'
 import { Button, Spinner, Textarea } from '@/components/ui'
@@ -57,6 +58,7 @@ class NotFound extends Error {}
 type SessionData = {
   day: DayWithExercises
   sessionId: string
+  startedAt: string
   history: Record<string, SetLog[]>
   translations: Record<string, ExerciseTranslation>
   profile: Profile | null
@@ -89,7 +91,16 @@ async function loadDayFromNetwork(programDayId: string, userId: string): Promise
     cachedAt: new Date().toISOString(),
   })
 
-  return { day, sessionId: session.id, history, translations, profile, intake, offline: false }
+  return {
+    day,
+    sessionId: session.id,
+    startedAt: session.startedAt,
+    history,
+    translations,
+    profile,
+    intake,
+    offline: false,
+  }
 }
 
 /**
@@ -107,6 +118,7 @@ async function loadCachedDay(programDayId: string, userId: string): Promise<Sess
   return {
     day: cached.day,
     sessionId: session.id,
+    startedAt: session.startedAt,
     history: cached.history,
     translations: cached.translations ?? {},
     profile: cached.profile ?? null,
@@ -441,8 +453,12 @@ export function Session() {
           </div>
 
           <SyncIndicator />
-          <span className="num px-2 text-sm text-[var(--fg-muted)]">
-            {doneSets}/{totalSets}
+
+          <span className="flex shrink-0 flex-col items-end px-2">
+            <span className="num text-sm text-[var(--fg-muted)]">
+              {doneSets}/{totalSets}
+            </span>
+            <Elapsed startedAt={data.startedAt} />
           </span>
         </div>
 

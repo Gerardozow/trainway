@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, ChevronRight, CloudOff } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CloudOff, Flame } from 'lucide-react'
 import { useAuth } from '@/lib/supabase/useAuth'
 import {
   currentWeek,
@@ -11,6 +11,7 @@ import {
 } from '@/lib/supabase/queries'
 import { supabase } from '@/lib/supabase/client'
 import { getExercise, muscleEs } from '@/lib/catalog'
+import { sessionStreak } from '@/lib/history'
 import { dayName, isoDayIndex, todayISO } from '@/lib/utils'
 import type { ProgramExercise } from '@/lib/supabase/types'
 import { EmptyState, Spinner } from '@/components/ui'
@@ -98,7 +99,17 @@ async function loadToday(userId: string) {
     .filter((d) => d.week === week && d.day_index > todayIndex)
     .sort((a, b) => a.day_index - b.day_index)
 
-  const payload = { program, week, day, exercises, translations, sessions, upcoming, offline: false }
+  const payload = {
+    program,
+    week,
+    day,
+    days,
+    exercises,
+    translations,
+    sessions,
+    upcoming,
+    offline: false,
+  }
 
   await db.cachedToday.put({ userId, payload, cachedAt: new Date().toISOString() })
 
@@ -120,9 +131,22 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
     return <Navigate to="/empezar" replace />
   }
 
-  const { program, week, day, exercises = [], translations = {}, sessions = [], upcoming = [] } = data
+  const {
+    program,
+    week,
+    day,
+    days = [],
+    exercises = [],
+    translations = {},
+    sessions = [],
+    upcoming = [],
+  } = data
   const todaySession = day ? sessions.find((s) => s.program_day_id === day.id && s.performed_on === todayISO()) : null
   const isDone = Boolean(todaySession?.completed_at)
+
+  // Dos entrenamientos seguidos todavía no son una racha; a partir de ahí sí, y
+  // enseñarla es la forma más barata de que no se rompa.
+  const streak = sessionStreak({ days, sessions, week: week!, dayIndex: isoDayIndex() })
 
   return (
     <div className="flex flex-1 flex-col">
@@ -133,7 +157,17 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
             {program!.name} · Semana {week} de {program!.weeks}
           </p>
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center gap-1">
+          {streak >= 2 && (
+            <span
+              className="num flex items-center gap-1 rounded-lg bg-[var(--surface-2)] px-2 py-1 text-sm"
+              title={`${streak} entrenamientos seguidos sin saltarte ninguno`}
+            >
+              <Flame className="size-4 text-volt-ink" aria-hidden />
+              {streak}
+              <span className="sr-only">entrenamientos seguidos</span>
+            </span>
+          )}
           <SyncIndicator />
           <ThemeToggle />
         </div>

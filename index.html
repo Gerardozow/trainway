@@ -9,7 +9,11 @@
     <link rel="icon" type="image/svg+xml" href="/trainway/icons/icon.svg" />
     <link rel="apple-touch-icon" href="/trainway/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- El sustituto estándar del anterior, que Apple mantiene por compatibilidad. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Sin esto, iOS pone como nombre del icono el <title> de la página. -->
+    <meta name="apple-mobile-web-app-title" content="Trainway" />
     <script>
       // Aplica el tema antes del primer pintado para evitar el destello de tema claro.
       try {
