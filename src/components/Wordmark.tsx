@@ -11,8 +11,13 @@ export function Wordmark({ className }: { className?: string }) {
       className={cn('display inline-flex items-center text-[1.75rem] leading-none', className)}
       style={{ fontStretch: '115%', letterSpacing: '-0.03em' }}
     >
-      <span className="text-[var(--fg)]">TRAIN</span>
-      <span className="text-volt-ink">WAY</span>
+      {/* El nombre va una sola vez para quien escucha. Partido en dos trozos de
+          color, un lector de pantalla leería "TRAIN" y "WAY" por separado, y
+          dentro de un <h1> con su propio texto alternativo sonaba
+          "TRAINWAY Trainway". Se oculta el dibujo y se nombra aparte. */}
+      <span aria-hidden className="text-[var(--fg)]">TRAIN</span>
+      <span aria-hidden className="text-volt-ink">WAY</span>
+      <span className="sr-only">Trainway</span>
     </span>
   )
 }

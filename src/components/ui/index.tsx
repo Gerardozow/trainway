@@ -69,6 +69,38 @@ export function Chip({
   )
 }
 
+/** Opción grande con explicación debajo. Para elegir de una lista corta. */
+export function BigOption({
+  selected,
+  label,
+  hint,
+  onClick,
+}: {
+  selected: boolean
+  label: string
+  hint: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={cn(
+        'flex min-h-16 flex-col justify-center rounded-xl border px-4 py-3 text-left transition-colors',
+        selected
+          ? 'border-volt bg-volt text-volt-fg'
+          : 'border-[var(--line)] bg-[var(--surface)] active:bg-[var(--surface-2)]',
+      )}
+    >
+      <span className="font-bold">{label}</span>
+      <span className={cn('text-sm', selected ? 'opacity-70' : 'text-[var(--fg-muted)]')}>
+        {hint}
+      </span>
+    </button>
+  )
+}
+
 export function Spinner({ className }: { className?: string }) {
   return (
     <span

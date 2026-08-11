@@ -1,12 +1,17 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { LogOut, Monitor, Moon, Sun } from 'lucide-react'
+import { ChevronRight, LogOut, Monitor, Moon, Sun, Vibrate, Volume2, VolumeX } from 'lucide-react'
 import { useAuth } from '@/lib/supabase/useAuth'
-import { getProfile, updateProfile } from '@/lib/supabase/queries'
+import { getLatestIntake, getProfile, updateProfile } from '@/lib/supabase/queries'
 import { useTheme, type Theme } from '@/lib/theme'
 import { clearLocal, pendingCount, syncNow } from '@/lib/offline'
+import { useSettings } from '@/lib/settings'
+import { EQUIPMENT_ES } from '@/lib/catalog'
+import { GOALS } from '@/lib/intakeOptions'
 import type { Units } from '@/lib/supabase/types'
 import { Button, Chip, Spinner } from '@/components/ui'
+import { InstallCard } from '@/components/InstallCard'
 import { Wordmark, Tagline } from '@/components/Wordmark'
 
 const THEMES: { value: Theme; label: string; Icon: typeof Sun }[] = [
@@ -19,6 +24,7 @@ export function Profile() {
   const { user, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const queryClient = useQueryClient()
+  const [settings, updateSettings] = useSettings()
   const [leaving, setLeaving] = useState(false)
   const [warning, setWarning] = useState<string | null>(null)
 
@@ -26,6 +32,12 @@ export function Profile() {
     queryKey: ['profile', user?.id],
     enabled: Boolean(user),
     queryFn: () => getProfile(user!.id),
+  })
+
+  const { data: intake } = useQuery({
+    queryKey: ['intake', user?.id],
+    enabled: Boolean(user),
+    queryFn: () => getLatestIntake(user!.id),
   })
 
   async function setUnits(units: Units) {
@@ -78,6 +90,32 @@ export function Profile() {
         <p className="text-sm text-[var(--fg-muted)]">{user?.email}</p>
       </header>
 
+      {/* Lo que respondiste en el cuestionario, resumido y editable. Es lo que
+          decide qué ejercicios se ofrecen; tenerlo escondido lo dejaba obsoleto. */}
+      <section className="flex flex-col gap-2">
+        <h2 className="eyebrow">Tu entrenamiento</h2>
+        <Link
+          to="/preferencias"
+          className="strip flex items-center gap-3 p-4 text-left active:bg-[var(--surface-2)]"
+        >
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="font-bold">
+              {GOALS.find((g) => g.value === intake?.goal)?.label ?? 'Sin cuestionario'}
+            </span>
+            <span className="text-sm text-[var(--fg-muted)]">
+              {intake
+                ? `${intake.days_per_week} días · ${intake.session_minutes} min · ${
+                    intake.equipment.map((e) => EQUIPMENT_ES[e] ?? e).join(', ') || 'sin equipo'
+                  }`
+                : 'Responde para armar tu plan'}
+            </span>
+          </span>
+          <ChevronRight className="size-5 shrink-0 text-[var(--fg-muted)]" aria-hidden />
+        </Link>
+      </section>
+
+      <InstallCard />
+
       <section className="flex flex-col gap-2">
         <h2 className="eyebrow">Tema</h2>
         <div className="grid grid-cols-3 gap-2">
@@ -92,6 +130,34 @@ export function Profile() {
               {label}
             </Chip>
           ))}
+        </div>
+      </section>
+
+      {/* Del dispositivo, no de la cuenta: en el móvil del gimnasio interesa que
+          suene, en el navegador de casa casi nunca. */}
+      <section className="flex flex-col gap-2">
+        <h2 className="eyebrow">Avisos del descanso</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <Chip
+            selected={settings.sound}
+            onClick={() => updateSettings({ sound: !settings.sound })}
+            className="flex items-center justify-center gap-1.5"
+          >
+            {settings.sound ? (
+              <Volume2 className="size-4" aria-hidden />
+            ) : (
+              <VolumeX className="size-4" aria-hidden />
+            )}
+            Sonido
+          </Chip>
+          <Chip
+            selected={settings.vibrate}
+            onClick={() => updateSettings({ vibrate: !settings.vibrate })}
+            className="flex items-center justify-center gap-1.5"
+          >
+            <Vibrate className="size-4" aria-hidden />
+            Vibración
+          </Chip>
         </div>
       </section>
 

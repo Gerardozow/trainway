@@ -6,28 +6,20 @@ import { useAuth } from '@/lib/supabase/useAuth'
 import { createIntake } from '@/lib/supabase/queries'
 import { generatePlan, translateExercises } from '@/lib/api'
 import { EQUIPMENT_ES, FOCUS_GROUPS } from '@/lib/catalog'
+import {
+  DAYS_OPTIONS,
+  EQUIPMENT_OPTIONS,
+  EXPERIENCES,
+  GOALS,
+  MAX_NOTES,
+  MINUTES_OPTIONS,
+  musclesFromGroups,
+} from '@/lib/intakeOptions'
 import type { Goal, Experience } from '@/lib/supabase/types'
-import { Button, Chip, Textarea, Spinner } from '@/components/ui'
+import { BigOption, Button, Chip, Textarea, Spinner } from '@/components/ui'
 import { Wordmark } from '@/components/Wordmark'
 
-const GOALS: { value: Goal; label: string; hint: string }[] = [
-  { value: 'hipertrofia', label: 'Ganar músculo', hint: 'Volumen moderado, rangos de 6 a 12' },
-  { value: 'fuerza', label: 'Ganar fuerza', hint: 'Cargas altas, rangos de 3 a 6' },
-  { value: 'perdida_grasa', label: 'Perder grasa', hint: 'Mantener músculo, más densidad' },
-  { value: 'resistencia', label: 'Aguantar más', hint: 'Series largas, descansos cortos' },
-  { value: 'general', label: 'Estar en forma', hint: 'Equilibrado, sin especializar' },
-]
-
-const EXPERIENCES: { value: Experience; label: string; hint: string }[] = [
-  { value: 'principiante', label: 'Principiante', hint: 'Menos de 6 meses entrenando' },
-  { value: 'intermedio', label: 'Intermedio', hint: 'Entre 6 meses y 2 años' },
-  { value: 'avanzado', label: 'Avanzado', hint: 'Más de 2 años, técnica sólida' },
-]
-
-const EQUIPMENT_OPTIONS = ['barbell', 'dumbbell', 'machine', 'cable', 'kettlebells', 'bands', 'body only']
-
 const TOTAL_STEPS = 6
-const MAX_NOTES = 2000
 
 type Answers = {
   goal: Goal | null
@@ -95,9 +87,7 @@ export function Onboarding() {
         session_minutes: a.sessionMinutes!,
         experience: a.experience!,
         equipment: a.equipment,
-        focus_muscles: a.focusMuscles.flatMap(
-          (k) => FOCUS_GROUPS.find((g) => g.key === k)?.muscles ?? [],
-        ),
+        focus_muscles: musclesFromGroups(a.focusMuscles),
         include_cardio: a.includeCardio,
         limitations: a.limitations.trim() || null,
         free_notes: a.freeNotes.trim() || null,
@@ -170,7 +160,7 @@ export function Onboarding() {
         {step === 1 && (
           <Question title="¿Cuántos días por semana?" hint="Sé realista: la constancia manda.">
             <div className="grid grid-cols-3 gap-2">
-              {[2, 3, 4, 5, 6, 7].map((d) => (
+              {DAYS_OPTIONS.map((d) => (
                 <Chip key={d} selected={a.daysPerWeek === d} onClick={() => set('daysPerWeek', d)}>
                   <span className="num text-xl">{d}</span>
                 </Chip>
@@ -182,7 +172,7 @@ export function Onboarding() {
         {step === 2 && (
           <Question title="¿Cuánto dura tu sesión?" hint="Sin contar el vestidor.">
             <div className="grid grid-cols-2 gap-2">
-              {[30, 45, 60, 75, 90, 120].map((m) => (
+              {MINUTES_OPTIONS.map((m) => (
                 <Chip
                   key={m}
                   selected={a.sessionMinutes === m}
@@ -331,33 +321,5 @@ function Question({
       </div>
       <div className="flex flex-col gap-2">{children}</div>
     </section>
-  )
-}
-
-function BigOption({
-  selected,
-  label,
-  hint,
-  onClick,
-}: {
-  selected: boolean
-  label: string
-  hint: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={`flex min-h-16 flex-col justify-center rounded-xl border px-4 py-3 text-left transition-colors ${
-        selected
-          ? 'border-volt bg-volt text-volt-fg'
-          : 'border-[var(--line)] bg-[var(--surface)] active:bg-[var(--surface-2)]'
-      }`}
-    >
-      <span className="font-bold">{label}</span>
-      <span className={`text-sm ${selected ? 'opacity-70' : 'text-[var(--fg-muted)]'}`}>{hint}</span>
-    </button>
   )
 }

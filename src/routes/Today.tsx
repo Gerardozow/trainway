@@ -19,6 +19,7 @@ import { Wordmark } from '@/components/Wordmark'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { SyncIndicator } from '@/components/SyncIndicator'
 import { ExerciseImage } from '@/components/ExerciseImage'
+import { InstallBanner } from '@/components/InstallCard'
 
 export function Today() {
   const { user } = useAuth()
@@ -103,6 +104,8 @@ export function Today() {
       </header>
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-4 px-4 py-6">
+        <InstallBanner />
+
         {!day ? (
           <EmptyState
             title="Hoy toca descansar"

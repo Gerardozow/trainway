@@ -70,7 +70,6 @@ export function Auth() {
       <div className="flex flex-col gap-3">
         <h1>
           <Wordmark className="h-7" />
-          <span className="sr-only">Trainway</span>
         </h1>
         <p className="text-[var(--fg-muted)]">
           {mode === 'entrar'

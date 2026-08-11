@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { Route, Routes, useLocation } from 'react-router'
+import { lazyWithRetry } from '@/lib/lazyWithRetry'
 import { AuthProvider } from '@/lib/supabase/useAuth'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import { SetupNeeded } from '@/routes/SetupNeeded'
@@ -11,11 +12,14 @@ import { Today } from '@/routes/Today'
 import { Session } from '@/routes/Session'
 import { PlanView } from '@/routes/PlanView'
 import { Profile } from '@/routes/Profile'
+import { Preferences } from '@/routes/Preferences'
 import { Spinner } from '@/components/ui'
 
 // Progreso arrastra la librería de gráficas, que es lo más pesado de la app y
-// solo hace falta en esa pantalla. Se carga cuando se entra, no antes.
-const Progress = lazy(() =>
+// solo hace falta en esa pantalla. Se carga cuando se entra, no antes — con
+// reintento, porque este es justo el chunk que se pide con la red inestable del
+// gimnasio o con una versión recién publicada.
+const Progress = lazyWithRetry(() =>
   import('@/routes/Progress').then((m) => ({ default: m.Progress })),
 )
 
@@ -96,6 +100,14 @@ export function App() {
             element={
               <RequireAuth>
                 <Profile />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/preferencias"
+            element={
+              <RequireAuth>
+                <Preferences />
               </RequireAuth>
             }
           />

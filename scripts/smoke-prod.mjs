@@ -12,6 +12,7 @@
  *   node scripts/smoke-prod.mjs [url]
  */
 import { readFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { chromium, devices } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 
@@ -166,10 +167,103 @@ try {
         .from('set_logs')
         .select('*', { count: 'exact', head: true })
       paso('la serie se sincronizó a la base', series > 0, `${series} registro(s)`)
+
+      // El descanso arrancó al marcar: tiene que poder ajustarse.
+      const masTreinta = await page
+        .getByRole('button', { name: /Añadir 30 segundos/ })
+        .count()
+      paso('el descanso se puede alargar', masTreinta > 0)
+
+      const posponer = await page.getByRole('button', { name: /Dejarlo para el final/ }).count()
+      paso('un ejercicio se puede posponer', posponer > 0)
+
+      // El editor de peso. Los discos solo salen si el ejercicio va a barra,
+      // así que se informa de lo que haya en vez de exigirlo.
+      await page.getByRole('button', { name: 'Editar peso' }).first().click()
+      await page.waitForTimeout(400)
+      const editor = await page.getByRole('button', { name: 'Subir peso' }).count()
+      const discos = await page.getByText('Por lado').count()
+      paso('el editor de peso abre', editor > 0, discos > 0 ? 'con discos por lado' : 'sin barra')
+
+      // --- "La vez pasada" ---------------------------------------------------
+      //
+      // La cuenta es nueva y no tiene historial, así que se le siembra una
+      // sesión de ayer por la puerta de atrás. Es la única forma de comprobar
+      // en producción lo que solo se ve con historial detrás.
+      const dayId = page.url().split('/sesion/')[1]
+      const { data: prescritos, error: errorPrescritos } = await admin
+        .from('program_exercises')
+        .select('id')
+        .eq('program_day_id', dayId)
+        .order('position')
+        .limit(1)
+
+      // Fecha LOCAL, como la calcula la app. En UTC-6, `toISOString` a última
+      // hora del día devuelve el día siguiente y "ayer" acababa siendo hoy:
+      // la sesión chocaba con la que la app ya había creado.
+      const ayer = new Date(Date.now() - 86_400_000)
+      const ayerISO = `${ayer.getFullYear()}-${String(ayer.getMonth() + 1).padStart(2, '0')}-${String(ayer.getDate()).padStart(2, '0')}`
+
+      const { data: sesionAyer, error: errorSesion } = await admin
+        .from('workout_sessions')
+        .insert({ user_id: userId, program_day_id: dayId, performed_on: ayerISO })
+        .select()
+        .single()
+
+      if (!prescritos?.[0] || !sesionAyer) {
+        paso(
+          'sembrar historial de ayer',
+          false,
+          `día ${dayId} · ${errorPrescritos?.message ?? ''} ${errorSesion?.message ?? ''}`.trim(),
+        )
+      }
+
+      if (prescritos?.[0] && sesionAyer) {
+        await admin.from('set_logs').insert(
+          [0, 1, 2].map((i) => ({
+            session_id: sesionAyer.id,
+            program_exercise_id: prescritos[0].id,
+            set_index: i,
+            done: true,
+            weight: 50,
+            reps: 10 - i,
+            client_id: randomUUID(),
+            logged_at: `${ayerISO}T18:00:00.000Z`,
+          })),
+        )
+
+        await page.reload({ waitUntil: 'networkidle' })
+        await page.waitForTimeout(2500)
+        const vezPasada = await page.getByText(/La vez pasada/).count()
+        const cifras = await page.getByText('50 kg × 10 · 9 · 8').count()
+        paso('la sesión anterior se muestra', vezPasada > 0 && cifras > 0, `${vezPasada} referencia(s)`)
+        await page.screenshot({ path: `${OUT}/prod-sesion-historial.png`, fullPage: true })
+      }
     }
   } else {
     paso('hoy toca descanso, sesión no probada', true)
   }
+
+  // --- Pantallas nuevas -----------------------------------------------------
+  await page.goto(`${BASE}/preferencias`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1500)
+  const preferencias = await page.getByRole('heading', { name: 'Tu entrenamiento' }).count()
+  const equipoMarcado = await page.getByRole('button', { name: 'Barra', pressed: true }).count()
+  paso('las preferencias se abren con lo respondido', preferencias > 0 && equipoMarcado > 0)
+  await page.screenshot({ path: `${OUT}/prod-preferencias.png`, fullPage: true })
+
+  await page.goto(`${BASE}/progreso`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(2000)
+  const racha = await page.getByText('Racha').count()
+  paso('progreso muestra la racha', racha > 0)
+  await page.screenshot({ path: `${OUT}/prod-progreso.png`, fullPage: true })
+
+  await page.goto(`${BASE}/perfil`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+  const instalar = await page.getByText(/Instalar la app/).count()
+  const avisos = await page.getByRole('button', { name: /Sonido/ }).count()
+  paso('perfil ofrece instalar y ajustar los avisos', instalar > 0 && avisos > 0)
+  await page.screenshot({ path: `${OUT}/prod-perfil.png`, fullPage: true })
 
   const ignorables = /favicon|manifest|sw\.js|\.map$/
   const relevantes = fallos.filter((f) => !ignorables.test(f))
