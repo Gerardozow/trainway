@@ -55,6 +55,19 @@ describe('raceWithFallback', () => {
     expect(out).toBe('fresco')
   })
 
+  it('un null legítimo de la red se respeta como respuesta', async () => {
+    const fallback = vi.fn(async () => 'guardado')
+
+    const out = await raceWithFallback<string | null>({
+      network: Promise.resolve(null),
+      fallback,
+      timeoutMs: 50,
+    })
+
+    expect(out).toBeNull()
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
   it('los errores marcados se propagan sin mirar la caché', async () => {
     class NoExiste extends Error {}
     const fallback = vi.fn(async () => 'guardado')

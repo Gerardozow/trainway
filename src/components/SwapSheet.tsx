@@ -24,6 +24,7 @@ export function SwapSheet({
   translations,
   canSwapToday,
   busy,
+  error,
   onSwap,
   onClose,
 }: {
@@ -34,6 +35,8 @@ export function SwapSheet({
   /** Falso si ya hay series marcadas: cambiarlo hoy falsearía el historial. */
   canSwapToday: boolean
   busy: boolean
+  /** Lo que salió mal al guardar el cambio, si salió algo mal. */
+  error?: string | null
   onSwap: (exercise: Exercise, scope: SwapScope) => void
   onClose: () => void
 }) {
@@ -191,11 +194,17 @@ export function SwapSheet({
               </Button>
             </div>
 
-            <p className="text-xs text-[var(--fg-muted)]">
-              {canSwapToday
-                ? '«Solo hoy» sirve si la máquina está ocupada. «Todo el bloque», si tu gimnasio no la tiene.'
-                : 'Ya registraste series de este ejercicio hoy, así que el cambio empieza la próxima semana.'}
-            </p>
+            {error ? (
+              <p role="alert" className="text-xs font-semibold text-red-600 dark:text-red-400">
+                {error}
+              </p>
+            ) : (
+              <p className="text-xs text-[var(--fg-muted)]">
+                {canSwapToday
+                  ? '«Solo hoy» sirve si la máquina está ocupada. «Todo el bloque», si tu gimnasio no la tiene.'
+                  : 'Ya registraste series de este ejercicio hoy, así que el cambio empieza la próxima semana.'}
+              </p>
+            )}
           </footer>
         )}
       </div>

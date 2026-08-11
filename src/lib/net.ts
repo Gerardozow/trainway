@@ -23,6 +23,9 @@ export function delay<T = null>(ms: number, value: T = null as T): Promise<T> {
  * más en el camino bueno. Los errores que se quieran propagar tal cual —"ese
  * día no existe" y parecidos— se declaran en `rethrow`.
  */
+/** Marca "aquí no hubo respuesta". Un símbolo, no `null`: `null` puede ser el dato. */
+const SIN_RESPUESTA = Symbol('sin respuesta')
+
 export async function raceWithFallback<T>(options: {
   network: Promise<T>
   fallback: () => Promise<T | null>
@@ -31,16 +34,16 @@ export async function raceWithFallback<T>(options: {
 }): Promise<T> {
   const { network, fallback, timeoutMs = SLOW_NETWORK_MS, rethrow } = options
 
-  const settled = network.then(
-    (value) => ({ value }),
+  const settled: Promise<T | typeof SIN_RESPUESTA> = network.then(
+    (value) => value,
     (error: unknown) => {
       if (rethrow?.(error)) throw error
-      return { value: null }
+      return SIN_RESPUESTA
     },
   )
 
-  const winner = await Promise.race([settled, delay(timeoutMs, { value: null })])
-  if (winner.value !== null) return winner.value
+  const winner = await Promise.race([settled, delay(timeoutMs, SIN_RESPUESTA as T | typeof SIN_RESPUESTA)])
+  if (winner !== SIN_RESPUESTA) return winner
 
   const cached = await fallback()
   if (cached !== null) return cached

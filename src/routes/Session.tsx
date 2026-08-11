@@ -159,6 +159,7 @@ export function Session() {
   const [postponed, setPostponed] = useState<string[]>([])
   const [swapping, setSwapping] = useState<string | null>(null)
   const [swapBusy, setSwapBusy] = useState(false)
+  const [swapError, setSwapError] = useState<string | null>(null)
   const [sessionRpe, setSessionRpe] = useState<number | null>(null)
   const [notes, setNotes] = useState('')
 
@@ -374,6 +375,8 @@ export function Session() {
   async function applySwap(programExerciseId: string, chosen: Exercise, scope: SwapScope) {
     if (!data) return
     setSwapBusy(true)
+    setSwapError(null)
+
     try {
       await swapExercise({
         programExerciseId,
@@ -389,6 +392,11 @@ export function Session() {
 
       setSwapping(null)
       await refetch()
+    } catch {
+      // Cambiar de ejercicio SÍ necesita red: reescribe la prescripción, y
+      // hacerlo solo en el móvil dejaría el plan diciendo una cosa y la pantalla
+      // otra. Se dice claro en vez de quedarse la hoja pensando para siempre.
+      setSwapError('No pudimos cambiar el ejercicio. Revisa tu conexión e inténtalo otra vez.')
     } finally {
       setSwapBusy(false)
     }
@@ -553,8 +561,12 @@ export function Session() {
           translations={data.translations}
           canSwapToday={!hasLoggedSets(swapping)}
           busy={swapBusy}
+          error={swapError}
           onSwap={(chosen, scope) => void applySwap(swapping, chosen, scope)}
-          onClose={() => setSwapping(null)}
+          onClose={() => {
+            setSwapping(null)
+            setSwapError(null)
+          }}
         />
       )}
 

@@ -60,7 +60,6 @@ vi.mock('@/lib/supabase/queries', () => ({
   getProfile: vi.fn(async () => ({ units: 'metric' })),
   getLatestIntake: vi.fn(async () => ({ equipment: ['barbell'] })),
   startSession: vi.fn(async () => ({ id: 'sesion1' })),
-  completeSession: vi.fn(),
   swapExercise: vi.fn(),
 }))
 
@@ -68,7 +67,11 @@ vi.mock('@/lib/offline', () => ({
   db: { cachedDays: { put: vi.fn(), get: vi.fn(async () => undefined) } },
   enqueueSet: vi.fn(),
   localSetsForSession: vi.fn(async () => []),
-  resolveSession: vi.fn(async () => ({ id: 'sesion1', offline: false })),
+  resolveSession: vi.fn(async () => ({
+    id: 'sesion1',
+    startedAt: '2026-08-10T18:00:00.000Z',
+    offline: false,
+  })),
   completeSessionLocal: vi.fn(),
   scheduleFlush: vi.fn(),
   syncNow: vi.fn(async () => ({ synced: 0, failed: 0 })),

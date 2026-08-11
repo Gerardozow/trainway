@@ -136,19 +136,11 @@ export async function startSession(
   ) as WorkoutSession
 }
 
-export async function completeSession(
-  sessionId: string,
-  patch: { session_rpe?: number | null; notes?: string | null } = {},
-): Promise<void> {
-  unwrap(
-    await supabase
-      .from('workout_sessions')
-      .update({ completed_at: new Date().toISOString(), ...patch })
-      .eq('id', sessionId)
-      .select()
-      .maybeSingle(),
-  )
-}
+/*
+ * Cerrar una sesión ya no se escribe directo: pasa por la cola de `lib/offline`
+ * (`completeSessionLocal`), que funciona sin red y sube el cambio después. Un
+ * atajo que escribiera aquí se saltaría eso justo cuando más falta hace.
+ */
 
 export async function getSessionsForProgram(
   userId: string,
@@ -165,12 +157,6 @@ export async function getSessionsForProgram(
 }
 
 // --- Historial de series ----------------------------------------------------
-
-export async function getSetLogs(sessionId: string): Promise<SetLog[]> {
-  return unwrap(
-    await supabase.from('set_logs').select('*').eq('session_id', sessionId).order('set_index'),
-  ) as SetLog[]
-}
 
 /**
  * Últimas series de cada ejercicio prescrito, para calcular la progresión.
