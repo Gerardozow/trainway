@@ -64,8 +64,8 @@ export function SetRow({
       <div className="relative flex items-center gap-1 px-1.5 py-1.5">
         <div
           aria-hidden
-          className="absolute inset-y-0 left-0 bg-volt transition-[width] duration-300 ease-[var(--ease-out-quint)]"
-          style={{ width: values.done ? '100%' : '0%' }}
+          className="carga absolute inset-0 bg-volt"
+          style={{ transform: `scaleX(${values.done ? 1 : 0})` }}
         />
 
         <span
@@ -126,7 +126,7 @@ export function SetRow({
           aria-pressed={values.done}
           aria-label={`${values.done ? 'Desmarcar' : 'Marcar'} serie ${index + 1}`}
           className={cn(
-            'relative grid size-12 shrink-0 place-items-center rounded-xl border transition-colors',
+            'press relative grid size-12 shrink-0 place-items-center rounded-xl border',
             values.done
               ? 'border-volt-fg/25 bg-volt-fg/10 text-volt-fg'
               : 'border-[var(--line)] text-[var(--fg-muted)]',
@@ -210,7 +210,7 @@ export function ValueButton({
       aria-expanded={active}
       aria-label={`Editar ${label}`}
       className={cn(
-        'flex min-h-12 items-baseline gap-1 rounded-lg px-2 transition-colors',
+        'press flex min-h-12 items-baseline gap-1 rounded-lg px-2',
         active && 'bg-current/10',
       )}
     >

@@ -199,6 +199,63 @@ export function personalRecords(history: Record<string, SetLog[]>): PersonalReco
  * día de la semana empezó el bloque. El día de hoy no rompe la racha aunque
  * esté sin terminar — todavía da tiempo.
  */
+export type WeekMark = {
+  /** 1..7 con lunes = 1, como se guarda en program_days. */
+  dayIndex: number
+  /** Inicial del día: L M X J V S D. */
+  initial: string
+  /** Hay entrenamiento prescrito ese día. */
+  planned: boolean
+  /** Se cerró la sesión de ese día. */
+  done: boolean
+  today: boolean
+  /** Ya pasó sin entrenarse lo prescrito. */
+  missed: boolean
+  title: string | null
+}
+
+const INICIALES = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+
+/**
+ * La semana en siete marcas.
+ *
+ * En un plan de tres días, cuatro de cada siete veces que se abre la app no hay
+ * nada que hacer. Esa pantalla estaba vacía, y vacía no dice lo único que
+ * importa un día de descanso: que el descanso está dentro del plan y que la
+ * semana va por donde tiene que ir.
+ *
+ * Los días son una secuencia de verdad —lunes va antes que martes—, así que
+ * enumerarlos no es decoración: es la información.
+ */
+export function weekMarks(args: {
+  days: ProgramDay[]
+  sessions: WorkoutSession[]
+  week: number
+  dayIndex: number
+}): WeekMark[] {
+  const { days, sessions, week, dayIndex } = args
+
+  const completed = new Set(
+    sessions.filter((s) => s.completed_at).map((s) => s.program_day_id),
+  )
+
+  return INICIALES.map((initial, i) => {
+    const index = i + 1
+    const day = days.find((d) => d.week === week && d.day_index === index) ?? null
+    const done = day ? completed.has(day.id) : false
+
+    return {
+      dayIndex: index,
+      initial,
+      planned: Boolean(day),
+      done,
+      today: index === dayIndex,
+      missed: Boolean(day) && !done && index < dayIndex,
+      title: day?.title ?? null,
+    }
+  })
+}
+
 export function sessionStreak(args: {
   days: ProgramDay[]
   sessions: WorkoutSession[]

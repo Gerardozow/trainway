@@ -57,7 +57,7 @@ export function Chip({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        'min-h-12 rounded-xl border px-4 font-semibold transition-colors',
+        'press min-h-12 rounded-xl border px-4 font-semibold',
         selected
           ? 'border-volt bg-volt text-volt-fg'
           : 'border-[var(--line)] bg-[var(--surface)] active:bg-[var(--surface-2)]',
@@ -87,7 +87,7 @@ export function BigOption({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        'flex min-h-16 flex-col justify-center rounded-xl border px-4 py-3 text-left transition-colors',
+        'press flex min-h-16 flex-col justify-center rounded-xl border px-4 py-3 text-left',
         selected
           ? 'border-volt bg-volt text-volt-fg'
           : 'border-[var(--line)] bg-[var(--surface)] active:bg-[var(--surface-2)]',

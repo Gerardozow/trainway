@@ -127,7 +127,7 @@ export function InstallBanner() {
         type="button"
         onClick={dismiss}
         aria-label="Ocultar el aviso de instalación"
-        className="-m-1 grid size-11 shrink-0 place-items-center rounded-xl text-[var(--fg-muted)] active:bg-[var(--surface-2)]"
+        className="press -m-1 grid size-11 shrink-0 place-items-center rounded-xl text-[var(--fg-muted)] active:bg-[var(--surface-2)]"
       >
         <X className="size-4" aria-hidden />
       </button>

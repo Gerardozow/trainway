@@ -58,16 +58,14 @@ export function RestTimer({
       aria-live="off"
       className="relative overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]"
     >
-      {/* Barra sólida y fina en el borde inferior. Un bloque translúcido de
-          amarillo sobre negro se vuelve un oliva sucio; esto se lee limpio en
-          ambos temas y no compite con el número. */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-1 bg-[var(--surface-2)]"
-      >
+      {/* La misma barra de la serie, vaciándose por donde se llenó.
+          Sólida y fina en el borde inferior: un bloque translúcido de amarillo
+          sobre negro se vuelve un oliva sucio, y esto se lee limpio en ambos
+          temas sin competir con el número. */}
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-1 bg-[var(--surface-2)]">
         <div
-          className="h-full bg-volt transition-[width] duration-200 ease-linear"
-          style={{ width: `${progress * 100}%` }}
+          className="carga carga-lineal size-full bg-volt"
+          style={{ transform: `scaleX(${progress})` }}
         />
       </div>
 
@@ -84,7 +82,7 @@ export function RestTimer({
             type="button"
             onClick={() => onAdjust(-15)}
             aria-label="Quitar 15 segundos de descanso"
-            className="num flex h-12 min-w-12 items-center justify-center gap-0.5 rounded-xl border border-[var(--line)] px-2 text-sm active:bg-[var(--surface-2)]"
+            className="press num flex h-12 min-w-12 items-center justify-center gap-0.5 rounded-xl border border-[var(--line)] px-2 text-sm active:bg-[var(--surface-2)]"
           >
             <Minus className="size-3.5" aria-hidden />
             15
@@ -94,7 +92,7 @@ export function RestTimer({
             type="button"
             onClick={() => onAdjust(30)}
             aria-label="Añadir 30 segundos de descanso"
-            className="num flex h-12 min-w-12 items-center justify-center gap-0.5 rounded-xl border border-[var(--line)] px-2 text-sm active:bg-[var(--surface-2)]"
+            className="press num flex h-12 min-w-12 items-center justify-center gap-0.5 rounded-xl border border-[var(--line)] px-2 text-sm active:bg-[var(--surface-2)]"
           >
             <Plus className="size-3.5" aria-hidden />
             30
@@ -104,7 +102,7 @@ export function RestTimer({
             type="button"
             onClick={onDismiss}
             aria-label="Saltar descanso"
-            className="grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
+            className="press grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
           >
             <X className="size-5" aria-hidden />
           </button>

@@ -83,7 +83,10 @@ export function ExerciseCard({
   return (
     <article
       id={`ejercicio-${exercise.id}`}
-      className={cn('strip scroll-mt-20 overflow-hidden', complete && !expanded && 'opacity-60')}
+      className={cn(
+        'strip scroll-mt-20 overflow-hidden transition-opacity duration-300',
+        complete && !expanded && 'opacity-60',
+      )}
     >
       {/* La miniatura NO va dentro del botón que despliega.
           Estaba dentro y tocarla cerraba la tarjeta, que es justo lo contrario
@@ -93,7 +96,10 @@ export function ExerciseCard({
         <ExerciseImage
           images={catalog.images}
           alt={name}
-          className={cn('shrink-0 transition-all', expanded ? 'size-20' : 'size-14')}
+          className={cn(
+            'shrink-0 transition-[width,height] duration-300 ease-[var(--ease-out-quint)]',
+            expanded ? 'size-20' : 'size-14',
+          )}
         />
 
         <h2 className="min-w-0 flex-1">
@@ -101,7 +107,7 @@ export function ExerciseCard({
             type="button"
             onClick={onToggleExpand}
             aria-expanded={expanded}
-            className="-my-3 flex w-full items-center gap-3 py-3 text-left"
+            className="press -my-3 flex w-full items-center gap-3 py-3 text-left"
           >
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="display leading-tight text-[1.0625rem]">{name}</span>
@@ -146,8 +152,12 @@ export function ExerciseCard({
         </h2>
       </div>
 
+      {/* Se despliega hacia abajo en vez de aparecer de golpe.
+          Solo la entrada: al cerrar, el contenido deja de existir y no hay nada
+          que sacar. Es la mitad que se puede animar sin dejar ocho mapas
+          musculares montados y ocho juegos de series en el DOM. */}
       {expanded && (
-        <div className="flex flex-col gap-3 px-3 pb-3">
+        <div className="aparece flex flex-col gap-3 px-3 pb-3">
           <div className="flex items-start gap-3">
             <MuscleMap
               primary={catalog.primaryMuscles}
@@ -173,7 +183,7 @@ export function ExerciseCard({
                 <button
                   type="button"
                   onClick={onSwap}
-                  className="flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 text-sm font-semibold active:bg-[var(--surface-2)]"
+                  className="press flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 text-sm font-semibold active:bg-[var(--surface-2)]"
                 >
                   <Repeat2 className="size-4" aria-hidden />
                   Cambiar
@@ -183,7 +193,7 @@ export function ExerciseCard({
                   <button
                     type="button"
                     onClick={onPostpone}
-                    className="flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 text-sm font-semibold active:bg-[var(--surface-2)]"
+                    className="press flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 text-sm font-semibold active:bg-[var(--surface-2)]"
                   >
                     <ArrowDownToLine className="size-4" aria-hidden />
                     Dejarlo para el final

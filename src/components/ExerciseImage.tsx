@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, ZoomIn } from 'lucide-react'
+import { Dumbbell, X, ZoomIn } from 'lucide-react'
 import { imageUrl } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +26,7 @@ export function ExerciseImage({
   expandable?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [failed, setFailed] = useState(false)
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   // <dialog> nativo: da el fondo modal, el foco atrapado y el cierre con Escape
@@ -39,17 +40,28 @@ export function ExerciseImage({
 
   const thumb = (
     <div className={cn('relative overflow-hidden rounded-xl bg-[var(--surface-2)]', className)}>
-      <img
-        src={imageUrl(images[0])}
-        alt={alt}
-        loading="lazy"
-        decoding="async"
-        className="absolute inset-0 size-full object-cover"
-      />
+      {failed ? (
+        <Dumbbell
+          className="absolute inset-0 m-auto size-1/3 text-[var(--fg-muted)]"
+          strokeWidth={1.5}
+          aria-hidden
+        />
+      ) : (
+        <img
+          src={imageUrl(images[0])}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 size-full object-cover"
+        />
+      )}
     </div>
   )
 
-  if (!expandable) return thumb
+  // Sin foto no hay nada que ampliar, y la lupa sobre un recuadro vacío promete
+  // algo que al tocarlo no aparece.
+  if (!expandable || failed) return thumb
 
   return (
     <>

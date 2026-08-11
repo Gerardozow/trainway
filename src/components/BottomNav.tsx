@@ -30,7 +30,17 @@ export function BottomNav() {
             >
               {({ isActive }) => (
                 <>
-                  <Icon className="size-5" strokeWidth={isActive ? 2.5 : 2} aria-hidden />
+                  {/* El icono activo se adelanta un poco. Es lo único que puede
+                      moverse aquí: la navegación se toca constantemente y
+                      cualquier cosa más larga se volvería lenta. */}
+                  <Icon
+                    className={cn(
+                      'size-5 transition-transform duration-150 ease-[var(--ease-out-quint)]',
+                      isActive && 'scale-110',
+                    )}
+                    strokeWidth={isActive ? 2.5 : 2}
+                    aria-hidden
+                  />
                   <span className={cn(isActive && 'text-volt-ink')}>{label}</span>
                 </>
               )}

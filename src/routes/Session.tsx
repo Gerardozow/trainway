@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CloudOff } from 'lucide-react'
+import { ArrowLeft, Check, CloudOff } from 'lucide-react'
 import { useAuth } from '@/lib/supabase/useAuth'
 import {
   getDayWithExercises,
@@ -130,6 +130,9 @@ async function loadCachedDay(programDayId: string, userId: string): Promise<Sess
 /** La cabecera es fija: sin el margen, el título del ejercicio queda debajo. */
 const SCROLL_OFFSET = 72
 
+/** Lo que dura el acuse en el botón antes de volver a Hoy. */
+const CONFIRM_MS = 700
+
 function scrollToCard(domId: string) {
   const el = document.getElementById(domId)
   if (!el) return
@@ -154,7 +157,7 @@ export function Session() {
 
   const [sets, setSets] = useState<SetsByExercise>({})
   const [rest, setRestState] = useState<RestState | null>(() => loadRest())
-  const [finishing, setFinishing] = useState(false)
+  const [finishing, setFinishing] = useState<false | 'guardando' | 'hecho'>(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [postponed, setPostponed] = useState<string[]>([])
   const [swapping, setSwapping] = useState<string | null>(null)
@@ -430,7 +433,7 @@ export function Session() {
 
   async function finish() {
     if (!data) return
-    setFinishing(true)
+    setFinishing('guardando')
     setRest(null)
     // Se cierra en local y se sube con el resto de la cola: terminar el
     // entrenamiento no puede depender de tener señal.
@@ -439,6 +442,12 @@ export function Session() {
       notes: notes.trim() || null,
     })
     await syncNow()
+
+    // El acuse va en el botón que se acaba de tocar, no en un aviso en otra
+    // esquina. Es el único momento ganado de toda la sesión y desaparecía en
+    // una navegación instantánea.
+    setFinishing('hecho')
+    await new Promise((r) => setTimeout(r, CONFIRM_MS))
     navigate('/', { replace: true })
   }
 
@@ -473,7 +482,7 @@ export function Session() {
             type="button"
             onClick={() => navigate('/')}
             aria-label="Volver a Hoy"
-            className="grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
+            className="press grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
           >
             <ArrowLeft className="size-5" aria-hidden />
           </button>
@@ -496,10 +505,11 @@ export function Session() {
           </span>
         </div>
 
+        {/* La sesión entera, con el mismo gesto que una serie suelta. */}
         <div className="h-0.5 w-full bg-[var(--surface-2)]">
           <div
-            className="h-full bg-volt transition-[width] duration-300"
-            style={{ width: totalSets ? `${(doneSets / totalSets) * 100}%` : '0%' }}
+            className="carga size-full bg-volt"
+            style={{ transform: `scaleX(${totalSets ? doneSets / totalSets : 0})` }}
           />
         </div>
       </header>
@@ -574,8 +584,25 @@ export function Session() {
             />
           </label>
 
-          <Button variant="volt" size="lg" full disabled={finishing} onClick={() => void finish()}>
-            {finishing ? <Spinner /> : allDone ? 'Terminar entrenamiento' : 'Terminar de todos modos'}
+          <Button
+            variant="volt"
+            size="lg"
+            full
+            disabled={Boolean(finishing)}
+            onClick={() => void finish()}
+          >
+            {finishing === 'hecho' ? (
+              <span className="aparece flex items-center gap-2">
+                <Check className="size-5" strokeWidth={3} aria-hidden />
+                Sesión guardada
+              </span>
+            ) : finishing ? (
+              <Spinner />
+            ) : allDone ? (
+              'Terminar entrenamiento'
+            ) : (
+              'Terminar de todos modos'
+            )}
           </Button>
         </section>
       </main>
@@ -598,7 +625,7 @@ export function Session() {
       )}
 
       {rest && (
-        <div className="sticky bottom-0 z-10 bg-[var(--bg)]/95 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="sube sticky bottom-0 z-10 bg-[var(--bg)]/95 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
           <div className="mx-auto max-w-lg">
             <RestTimer
               seconds={rest.seconds}

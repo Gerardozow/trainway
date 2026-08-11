@@ -37,7 +37,7 @@ npm run dev
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo en `localhost:5173/trainway/` |
-| `npm test` | Vitest: 237 pruebas de lógica y componentes |
+| `npm test` | Vitest: 247 pruebas de lógica y componentes |
 | `npm run e2e` | Playwright en perfil móvil |
 | `npm run typecheck` | TypeScript en modo estricto |
 | `npm run build` | Compila a `dist/` |
@@ -107,6 +107,10 @@ Dos detalles que cuesta descubrir y conviene no volver a tropezar:
 **`set_logs.client_id` es la clave de idempotencia.** Lo genera el celular antes de tocar la red y no cambia nunca, ni al editar la serie. Un reintento tras un corte de señal no duplica la fila.
 
 **El build falla si faltan las variables de entorno.** Vite sustituye `import.meta.env.*` por literales al compilar; sin ellas, cualquier guardia de configuración se pliega a una constante y el bundler elimina la aplicación entera como código muerto, con el build marcado como exitoso. `vite.config.ts` aborta antes de que eso pase.
+
+**Un solo gesto, tres escalas.** La serie se llena de amarillo de izquierda a derecha, como se carga un disco; el descanso vacía esa misma barra por el mismo lado; la cabecera la repite a escala de sesión, y el día de descanso a escala de semana. Es la clase `.carga`, y va en `transform: scaleX()` y no en `width`: el ancho recalcula la maquetación en cada fotograma, y esto se anima justo cuando el usuario acaba de tocar la pantalla. Dos curvas y no más: `--ease-out-quint` para lo que entra y para el tacto, `--ease-move` para lo que se desplaza.
+
+**En un móvil el único acuse de recibo es que la cosa tocada se mueva.** No hay cursor ni hover. La clase `.press` hunde lo tocado un 2.5 %, y declara ella misma la transición de color: puesta junto a `transition-colors`, la utilidad de Tailwind va después en la hoja y reescribe `transition-property` dejando fuera `transform`, así que la presión se aplicaba y se soltaba de golpe.
 
 **La versión nueva se pregunta, no se impone.** El service worker está en `prompt`, no en `autoUpdate`. Con `autoUpdate` el worker nuevo se activaba solo y borraba la caché del anterior: la pestaña abierta seguía con el HTML viejo y el primer chunk que pedía —Progreso— ya no existía, que es el error de MIME que apareció en producción. En `prompt` el worker viejo sigue sirviendo sus archivos hasta que el usuario acepta. Se comprueba cada hora y al volver a la app, y el aviso no sale en la sesión ni en el wizard: ahí una recarga interrumpe algo a medias.
 

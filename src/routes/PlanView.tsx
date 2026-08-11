@@ -184,7 +184,7 @@ export function PlanView() {
                       <li key={d.id}>
                         <Link
                           to={`/sesion/${d.id}`}
-                          className="flex min-h-14 items-center gap-3 rounded-xl px-3 active:bg-[var(--surface-2)]"
+                          className="press flex min-h-14 items-center gap-3 rounded-xl px-3 active:bg-[var(--surface-2)]"
                         >
                           <span
                             className={cn(

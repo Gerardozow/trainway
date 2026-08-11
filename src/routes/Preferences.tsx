@@ -192,7 +192,7 @@ export function Preferences() {
           type="button"
           onClick={() => navigate('/perfil')}
           aria-label="Volver a Perfil"
-          className="-ml-2 grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
+          className="press -ml-2 grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
         >
           <ArrowLeft className="size-5" aria-hidden />
         </button>

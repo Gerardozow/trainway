@@ -11,10 +11,11 @@ import {
 } from '@/lib/supabase/queries'
 import { supabase } from '@/lib/supabase/client'
 import { getExercise, muscleEs } from '@/lib/catalog'
-import { sessionStreak } from '@/lib/history'
+import { sessionStreak, weekMarks, type WeekMark } from '@/lib/history'
 import { dayName, isoDayIndex, todayISO } from '@/lib/utils'
-import type { ProgramExercise } from '@/lib/supabase/types'
+import type { ProgramDay, ProgramExercise } from '@/lib/supabase/types'
 import { EmptyState, Spinner } from '@/components/ui'
+import { WeekMarks } from '@/components/WeekMarks'
 import { buttonClass } from '@/components/ui/Button'
 import { Wordmark } from '@/components/Wordmark'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -116,6 +117,56 @@ async function loadToday(userId: string) {
   return payload
 }
 
+/**
+ * El día de descanso.
+ *
+ * En un plan de tres días esta es la pantalla que más se ve, y era un hueco con
+ * una frase en medio. El descanso no se justifica con más texto: se justifica
+ * enseñando la semana, donde se ve que está previsto y que lo hecho está hecho.
+ */
+function RestDay({ marks, next }: { marks: WeekMark[]; next: ProgramDay | null }) {
+  const hechos = marks.filter((m) => m.done).length
+  const previstos = marks.filter((m) => m.planned).length
+
+  return (
+    <section className="strip flex flex-col gap-5 p-5">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="eyebrow">Esta semana</p>
+          <p className="num text-sm text-[var(--fg-muted)]">
+            {hechos} de {previstos}
+          </p>
+        </div>
+        <WeekMarks marks={marks} />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <h1 className="display text-2xl">Hoy toca descansar</h1>
+        <p className="text-sm leading-relaxed text-[var(--fg-muted)]">
+          Está en el plan a propósito: el músculo se construye entre sesiones, no
+          durante. Duerme bien y vuelve entero.
+        </p>
+      </div>
+
+      {next && (
+        <Link
+          to="/plan"
+          className="press -m-2 flex items-center gap-3 rounded-xl p-2 active:bg-[var(--surface-2)]"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="eyebrow">Siguiente · {dayName(next.day_index)}</span>
+            <span className="block truncate font-bold">{next.title}</span>
+            <span className="block truncate text-xs text-[var(--fg-muted)]">
+              {next.focus.map(muscleEs).join(' · ')}
+            </span>
+          </span>
+          <ChevronRight className="size-5 shrink-0 text-[var(--fg-muted)]" aria-hidden />
+        </Link>
+      )}
+    </section>
+  )
+}
+
 function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean }) {
   // Sin plan activo, el sitio del usuario es el wizard. Pero solo cuando la
   // respuesta es fresca: redirigir con datos en vuelo manda al cuestionario a
@@ -147,6 +198,7 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
   // Dos entrenamientos seguidos todavía no son una racha; a partir de ahí sí, y
   // enseñarla es la forma más barata de que no se rompa.
   const streak = sessionStreak({ days, sessions, week: week!, dayIndex: isoDayIndex() })
+  const marks = weekMarks({ days, sessions, week: week!, dayIndex: isoDayIndex() })
 
   return (
     <div className="flex flex-1 flex-col">
@@ -184,17 +236,7 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
         <InstallBanner />
 
         {!day ? (
-          <EmptyState
-            title="Hoy toca descansar"
-            body="El descanso es parte del plan: es cuando el músculo se construye. Aprovecha para dormir bien."
-            action={
-              upcoming.length > 0 ? (
-                <p className="eyebrow pt-2">
-                  Siguiente: {dayName(upcoming[0]!.day_index)} · {upcoming[0]!.title}
-                </p>
-              ) : undefined
-            }
-          />
+          <RestDay marks={marks} next={upcoming[0] ?? null} />
         ) : (
           <>
             <section className="flex flex-col gap-1">

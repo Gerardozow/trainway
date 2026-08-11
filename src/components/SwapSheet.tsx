@@ -113,7 +113,7 @@ export function SwapSheet({
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="-mt-1 grid size-12 shrink-0 place-items-center rounded-xl active:bg-[var(--surface-2)]"
+            className="press -mt-1 grid size-12 shrink-0 place-items-center rounded-xl active:bg-[var(--surface-2)]"
           >
             <X className="size-5" aria-hidden />
           </button>
@@ -136,7 +136,7 @@ export function SwapSheet({
                       onClick={() => setChosen(selected ? null : e)}
                       aria-pressed={selected}
                       className={cn(
-                        'flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition-colors',
+                        'press flex w-full items-center gap-3 rounded-xl border p-2.5 text-left',
                         selected
                           ? 'border-volt bg-volt/10'
                           : 'border-[var(--line)] bg-[var(--surface)]',

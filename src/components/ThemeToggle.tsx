@@ -17,7 +17,7 @@ export function ThemeToggle() {
       type="button"
       onClick={() => setTheme(NEXT[theme])}
       aria-label={`${LABEL[theme]}. Cambiar a ${LABEL[NEXT[theme]].toLowerCase().replace('tema: ', '')}`}
-      className="grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
+      className="press grid size-12 place-items-center rounded-xl active:bg-[var(--surface-2)]"
     >
       <Icon className="size-5" aria-hidden />
     </button>

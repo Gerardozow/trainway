@@ -96,7 +96,7 @@ export function Profile() {
         <h2 className="eyebrow">Tu entrenamiento</h2>
         <Link
           to="/preferencias"
-          className="strip flex items-center gap-3 p-4 text-left active:bg-[var(--surface-2)]"
+          className="press strip flex items-center gap-3 p-4 text-left active:bg-[var(--surface-2)]"
         >
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="font-bold">

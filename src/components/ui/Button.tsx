@@ -25,8 +25,8 @@ export function buttonClass(
 ): string {
   const { variant = 'outline', size = 'md', full = false, className } = opts
   return cn(
-    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold',
-    'transition-[filter,background-color,opacity] duration-150',
+    'press inline-flex items-center justify-center gap-2 rounded-xl font-semibold',
+    'transition-[filter,background-color,opacity,transform] duration-150',
     'disabled:pointer-events-none disabled:opacity-40',
     VARIANTS[variant],
     SIZES[size],

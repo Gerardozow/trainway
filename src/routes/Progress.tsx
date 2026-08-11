@@ -118,7 +118,9 @@ export function Progress() {
 
     return [...byDay.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([day, weight]) => ({ label: day.slice(5), weight }))
+      // DD/MM, como el resto de la app. `slice(5)` daba "08-11", que en la misma
+      // pantalla que un récord fechado "11/08" se lee como otro día.
+      .map(([day, weight]) => ({ label: formatShortDate(day), weight }))
   }, [data, currentExercise])
 
   if (isLoading) {

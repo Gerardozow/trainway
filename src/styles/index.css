@@ -32,7 +32,10 @@
 
   --radius-strip: 0.875rem;
 
+  /* Dos curvas y no más. `entrada` para lo que aparece y para el tacto;
+     `recorrido` para lo que se desplaza por la pantalla. */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-move: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* Superficies por tema. Se exponen como variables CSS y se consumen con
@@ -164,5 +167,75 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-strip);
     box-shadow: var(--shadow-strip);
+  }
+
+  /* --- La carga. El gesto de la marca. ---------------------------------
+     La serie se llena de amarillo de izquierda a derecha, como se carga un
+     disco; el descanso vacía esa misma barra por el mismo lado. Es un solo
+     gesto en tres escalas: la serie, el descanso y la sesión entera.
+
+     Va en `transform`, no en `width`: el ancho recalcula la maquetación en
+     cada fotograma y esto se anima mientras el usuario acaba de tocar la
+     pantalla, que es cuando menos se puede permitir perder fotogramas. */
+  .carga {
+    transform-origin: left;
+    transition: transform 300ms var(--ease-out-quint);
+  }
+
+  /* El descanso corre solo: sin la curva de entrada, que aquí mentiría.
+     Es lo único que se mueve cada cuarto de segundo sin parar, así que es lo
+     único que se promociona a su propia capa; hacerlo en todas costaría más
+     memoria de compositor de lo que ahorra. */
+  .carga-lineal {
+    transition-timing-function: linear;
+    transition-duration: 250ms;
+    will-change: transform;
+  }
+
+  /* --- Tacto. ----------------------------------------------------------
+     Se hunde bajo el dedo. En un móvil no hay cursor ni hover: el único
+     acuse de recibo posible es que la cosa tocada se mueva.
+
+     El color va aquí dentro a propósito. Con `transition-colors` al lado, la
+     utilidad de Tailwind gana —va después en la hoja— y reescribe
+     `transition-property` dejando fuera `transform`: la presión se aplicaba de
+     golpe y se soltaba de golpe. Un solo sitio declara las cuatro. */
+  .press {
+    transition-property: transform, color, background-color, border-color;
+    transition-duration: 140ms;
+    transition-timing-function: var(--ease-out-quint);
+  }
+  .press:active {
+    transform: scale(0.975);
+  }
+
+  /* --- Aparecer. Solo para lo que aparece porque el usuario lo pidió. --- */
+  .aparece {
+    animation: aparece 220ms var(--ease-out-quint) both;
+  }
+
+  @keyframes aparece {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+
+  /* Lo que entra por el borde de abajo, entra desde abajo. El descanso
+     apareciendo de golpe encima de la navegación se lee como un error. */
+  .sube {
+    animation: sube 240ms var(--ease-move) both;
+  }
+
+  @keyframes sube {
+    from {
+      transform: translateY(100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .press:active {
+      transform: none;
+    }
   }
 }

@@ -48,7 +48,7 @@ export function UpdateBanner({
           type="button"
           onClick={onDismiss}
           aria-label="Ahora no"
-          className="-mr-1 grid size-10 shrink-0 place-items-center rounded-xl text-[var(--fg-muted)] active:bg-[var(--surface-2)]"
+          className="press -mr-1 grid size-10 shrink-0 place-items-center rounded-xl text-[var(--fg-muted)] active:bg-[var(--surface-2)]"
         >
           <X className="size-4" aria-hidden />
         </button>
