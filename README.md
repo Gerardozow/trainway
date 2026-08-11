@@ -37,7 +37,7 @@ npm run dev
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo en `localhost:5173/trainway/` |
-| `npm test` | Vitest: 247 pruebas de lógica y componentes |
+| `npm test` | Vitest: 259 pruebas de lógica y componentes |
 | `npm run e2e` | Playwright en perfil móvil |
 | `npm run typecheck` | TypeScript en modo estricto |
 | `npm run build` | Compila a `dist/` |
@@ -80,7 +80,7 @@ Es la pantalla que se usa de pie, con el móvil en una mano:
 - **Discos por lado.** 62.5 kg se carga como 20 + 1.25. Solo aparece en lo que va a barra.
 - **Calentamiento.** Rampa hasta el peso de trabajo en los básicos. No se registra: es una guía, y por eso se calcula en vez de guardarse.
 - **Cambiar y posponer.** Cambiar ofrece alternativas para el mismo músculo con tu equipamiento; posponer manda el ejercicio al final del día sin tocar el plan.
-- **Descanso.** Arranca solo, se ajusta con −15 / +30, avisa con sonido y vibración (ambos se apagan desde Perfil) y sobrevive a recargar la página.
+- **Descanso.** Arranca solo, se ajusta con −15 / +30, avisa con sonido y vibración (ambos se apagan desde Perfil) y sobrevive a recargar la página. Desde Perfil se puede fijar uno solo para todo, para quien entrena a reloj. Cero segundos gana siempre: el plan lo pone en el último ejercicio y ahí no hay nada que cronometrar.
 
 ## Sin conexión
 
@@ -99,6 +99,8 @@ Dos detalles que cuesta descubrir y conviene no volver a tropezar:
 ## Decisiones que conviene conocer
 
 **La IA elige de un catálogo cerrado, nunca inventa.** El Worker le pasa ~60 candidatos con sus id y exige que elija solo de ahí. `validatePlan` rechaza cualquier otro; si reincide tras un reintento, `repairPlan` sustituye por el candidato más cercano. Sin esto el modelo devuelve ejercicios plausibles que no existen y el plan queda con huecos donde debería ir la imagen.
+
+**El cardio necesita plaza reservada entre los candidatos.** Los sesenta que ve el modelo salen ordenados por músculos trabajados, y una cinta no trabaja el pecho: el primer ejercicio de cardio caía en la posición 160 de 499 y el recorte se llevaba los once. La casilla del cuestionario existía, viajaba hasta el filtro y no cambiaba nada. Y ver los candidatos tampoco basta: "quiere incluir cardio: sí" se lee como un rasgo de la persona, no como una instrucción, así que la regla dice sitio, duración y formato.
 
 **La IA genera una semana, no cuatro.** Las semanas 2 a 4 se derivan en código (`expandBlock`): semana 3 suma una serie a los compuestos, semana 4 es descarga. Pedirle 96 entradas de JSON a un modelo es caro y es justo donde empieza a contradecirse.
 
