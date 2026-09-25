@@ -7,7 +7,6 @@ import { createIntake } from '@/lib/supabase/queries'
 import { generatePlan, translateExercises } from '@/lib/api'
 import { EQUIPMENT_ES, FOCUS_GROUPS } from '@/lib/catalog'
 import {
-  DAYS_OPTIONS,
   EQUIPMENT_OPTIONS,
   EXPERIENCES,
   GOALS,
@@ -18,12 +17,13 @@ import {
 import type { Goal, Experience } from '@/lib/supabase/types'
 import { BigOption, Button, Chip, Textarea, Spinner } from '@/components/ui'
 import { Wordmark } from '@/components/Wordmark'
+import { WeekdayPicker } from '@/components/WeekdayPicker'
 
 const TOTAL_STEPS = 6
 
 type Answers = {
   goal: Goal | null
-  daysPerWeek: number | null
+  days: number[]
   sessionMinutes: number | null
   experience: Experience | null
   equipment: string[]
@@ -35,7 +35,7 @@ type Answers = {
 
 const EMPTY: Answers = {
   goal: null,
-  daysPerWeek: null,
+  days: [],
   sessionMinutes: null,
   experience: null,
   equipment: [],
@@ -69,7 +69,7 @@ export function Onboarding() {
 
   const canAdvance = [
     a.goal !== null,
-    a.daysPerWeek !== null,
+    a.days.length >= 2,
     a.sessionMinutes !== null,
     a.experience !== null,
     a.equipment.length > 0,
@@ -85,7 +85,7 @@ export function Onboarding() {
       const intake = await createIntake({
         user_id: user.id,
         goal: a.goal!,
-        days_per_week: a.daysPerWeek!,
+        days_per_week: a.days.length,
         session_minutes: a.sessionMinutes!,
         experience: a.experience!,
         equipment: a.equipment,
@@ -95,7 +95,7 @@ export function Onboarding() {
         free_notes: a.freeNotes.trim() || null,
       })
 
-      const plan = await generatePlan(intake.id)
+      const plan = await generatePlan(intake.id, { days: a.days })
       await translateExercises(plan.exercise_ids)
 
       // Borrar, no invalidar.
@@ -160,14 +160,11 @@ export function Onboarding() {
         )}
 
         {step === 1 && (
-          <Question title="¿Cuántos días por semana?" hint="Sé realista: la constancia manda.">
-            <div className="grid grid-cols-3 gap-2">
-              {DAYS_OPTIONS.map((d) => (
-                <Chip key={d} selected={a.daysPerWeek === d} onClick={() => set('daysPerWeek', d)}>
-                  <span className="num text-xl">{d}</span>
-                </Chip>
-              ))}
-            </div>
+          <Question
+            title="¿Qué días vas al gym?"
+            hint="Al menos dos. Sé realista: la constancia manda, y si un día cambia, la app se adapta."
+          >
+            <WeekdayPicker value={a.days} onChange={(days) => set('days', days)} />
           </Question>
         )}
 

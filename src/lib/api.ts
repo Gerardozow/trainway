@@ -32,8 +32,15 @@ export type GeneratedPlan = {
   exercise_ids: string[]
 }
 
-export function generatePlan(intakeId: string, previousReview?: string): Promise<GeneratedPlan> {
-  return post<GeneratedPlan>('plan', { intake_id: intakeId, previous_review: previousReview })
+export function generatePlan(
+  intakeId: string,
+  opts: { previousReview?: string; days?: number[] } = {},
+): Promise<GeneratedPlan> {
+  return post<GeneratedPlan>('plan', {
+    intake_id: intakeId,
+    previous_review: opts.previousReview,
+    days: opts.days,
+  })
 }
 
 /** Falla en silencio: sin traducción la app sigue, solo en inglés. */

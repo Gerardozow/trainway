@@ -117,7 +117,7 @@ export function PlanView() {
         free_notes: base?.free_notes ?? null,
       })
 
-      const plan = await generatePlan(intake.id, review.notes_for_next_block)
+      const plan = await generatePlan(intake.id, { previousReview: review.notes_for_next_block })
       await translateExercises(plan.exercise_ids)
       await refetch()
       navigate('/', { replace: true })
