@@ -216,16 +216,26 @@ function PendingDay({
  * una frase en medio. El descanso no se justifica con más texto: se justifica
  * enseñando la semana, donde se ve que está previsto y que lo hecho está hecho.
  */
-function RestDay({ marks, next }: { marks: WeekMark[]; next: ProgramDay | null }) {
+function RestDay({
+  marks,
+  next,
+  doneToday = false,
+}: {
+  marks: WeekMark[]
+  next: ProgramDay | null
+  /** Hoy no tocaba pero se entrenó igual. */
+  doneToday?: boolean
+}) {
   return (
     <section className="strip flex flex-col gap-5 p-5">
       <WeekHeader marks={marks} />
 
       <div className="flex flex-col gap-1.5">
-        <h1 className="display text-2xl">Hoy toca descansar</h1>
+        <h1 className="display text-2xl">{doneToday ? 'Hecho por hoy' : 'Hoy toca descansar'}</h1>
         <p className="text-sm leading-relaxed text-[var(--fg-muted)]">
-          Está en el plan a propósito: el músculo se construye entre sesiones, no
-          durante. Duerme bien y vuelve entero.
+          {doneToday
+            ? 'Entrenaste un día que no tocaba y ya cuenta en tu semana. Lo siguiente, otro día: dos seguidos no suman lo mismo.'
+            : 'Está en el plan a propósito: el músculo se construye entre sesiones, no durante. Duerme bien y vuelve entero.'}
         </p>
       </div>
 
@@ -275,7 +285,13 @@ export function TodayView({ data, isFetching }: { data: TodayData; isFetching: b
     upcoming = [],
   } = data
   const todaySession = day ? sessions.find((s) => s.program_day_id === day.id && s.performed_on === todayISO()) : null
-  const isDone = Boolean(todaySession?.completed_at)
+  // Hecho es hecho aunque haya sido otro día: si se adelantó el jueves el
+  // miércoles, el jueves no vuelve a pedirlo.
+  const isDone = day
+    ? sessions.some((s) => s.program_day_id === day.id && s.completed_at)
+    : false
+  // Ya se entrenó hoy (se recuperó o adelantó un día): no se ofrece otro.
+  const doneToday = sessions.some((s) => s.completed_at && s.performed_on === todayISO())
 
   // Dos entrenamientos seguidos todavía no son una racha; a partir de ahí sí, y
   // enseñarla es la forma más barata de que no se rompa.
@@ -323,7 +339,7 @@ export function TodayView({ data, isFetching }: { data: TodayData; isFetching: b
 
         <InstallBanner />
 
-        {!day && pending ? (
+        {!day && pending && !doneToday ? (
           <PendingDay
             pending={pending}
             marks={marks}
@@ -331,7 +347,7 @@ export function TodayView({ data, isFetching }: { data: TodayData; isFetching: b
             translations={translations as Record<string, ExerciseTranslation>}
           />
         ) : !day ? (
-          <RestDay marks={marks} next={upcoming[0] ?? null} />
+          <RestDay marks={marks} next={upcoming[0] ?? null} doneToday={doneToday} />
         ) : (
           <>
             <WeekSummary marks={marks} />

@@ -16,9 +16,32 @@ export function mondayISO(date: Date): string {
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
   return d.toISOString().slice(0, 10)
 }
+
+/**
+ * El lunes con el que empieza el bloque.
+ *
+ * Lo manda el cliente porque el Worker vive en UTC: un domingo a las 19:30 en
+ * Ciudad de México ya es lunes allí, y el bloque empezaba una semana tarde. Se
+ * acepta solo si es un lunes a una semana como mucho del lunes UTC; si no, el
+ * de UTC.
+ */
+export function resolveStartsOn(raw: unknown, now: Date): string {
+  const utc = mondayISO(now)
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return utc
+  const date = new Date(`${raw}T00:00:00Z`)
+  if (Number.isNaN(date.getTime()) || date.getUTCDay() !== 1) return utc
+  const diff = Math.abs(date.getTime() - new Date(`${utc}T00:00:00Z`).getTime())
+  return diff <= 7 * 86_400_000 ? raw : utc
+}
 const MAX_PLANS_PER_DAY = 10
 
-type Body = { intake_id?: string; previous_review?: string | null; days?: unknown }
+type Body = {
+  intake_id?: string
+  previous_review?: string | null
+  days?: unknown
+  /** Lunes de la semana en la hora local de la persona, YYYY-MM-DD. */
+  week_start?: unknown
+}
 
 /**
  * Genera un bloque de 4 semanas.
@@ -126,7 +149,7 @@ ${result.errors.map((e) => `- ${e}`).join('\n')}`,
     weeks: BLOCK_WEEKS,
     // El lunes de esta semana: las semanas del bloque van de lunes a domingo
     // porque los días del plan son días de la semana.
-    starts_on: mondayISO(new Date()),
+    starts_on: resolveStartsOn(body.week_start, new Date()),
     status: 'active',
     ai_model: MINIMAX_MODEL,
     ai_rationale: plan.rationale,

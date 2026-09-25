@@ -122,6 +122,10 @@ export function Preferences() {
   /** Guardar sin cambios crearía un cuestionario idéntico. Se compara y ya. */
   const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(original.current)
 
+  // Otra cantidad de días no cabe en el bloque en curso y los días concretos
+  // solo existen en el plan: guardarla sin rehacer perdía cuáles eran.
+  const countChanged = Boolean(active && draft && draft.days.length !== active.days.length)
+
   async function save(): Promise<string | null> {
     if (!user || !draft) return null
 
@@ -250,9 +254,9 @@ export function Preferences() {
 
       <Field label="Tus días">
         <WeekdayPicker value={draft.days} onChange={(days) => set('days', days)} />
-        {active && draft.days.length >= 2 && draft.days.length !== active.days.length && (
+        {countChanged && draft.days.length >= 2 && (
           <p className="text-sm text-[var(--fg-muted)]">
-            {`Para aplicar ${draft.days.length} días hay que rehacer el bloque. Guardar solo actualiza tus respuestas.`}
+            {`Para cambiar a ${draft.days.length} días hay que rehacer el bloque (abajo). Qué días vas solo se guarda en el plan.`}
           </p>
         )}
       </Field>
@@ -393,7 +397,7 @@ export function Preferences() {
           variant="volt"
           size="lg"
           full
-          disabled={saving || !dirty || draft.equipment.length === 0 || draft.days.length < 2}
+          disabled={saving || !dirty || draft.equipment.length === 0 || draft.days.length < 2 || countChanged}
           onClick={() => void onSave()}
         >
           {saving ? <Spinner /> : saved && !dirty ? <Check className="size-5" aria-hidden /> : null}

@@ -19,17 +19,25 @@ describe('mondayOf', () => {
   })
 })
 
-describe('currentWeek con semanas en lunes', () => {
-  const program = { starts_on: '2026-09-23', weeks: 4 } as Program
+describe('currentWeek', () => {
+  // Los bloques nuevos guardan el lunes de la semana en que se crean.
+  const program = { starts_on: '2026-09-21', weeks: 4 } as Program
 
-  it('el bloque nacido un miércoles sigue en semana 1 el domingo', () => {
+  it('un bloque creado un miércoles sigue en semana 1 el domingo', () => {
     expect(currentWeek(program, new Date(2026, 8, 27, 12))).toBe(1)
   })
 
-  // Antes contaba siete días desde el miércoles: el lunes seguía siendo semana
-  // 1 y la vista de la semana tomaba el miércoles pasado por un día próximo.
   it('el lunes siguiente ya es semana 2', () => {
     expect(currentWeek(program, new Date(2026, 8, 28, 9))).toBe(2)
+  })
+
+  // Un bloque viejo empezó el día en que se creó. Reinterpretarlo desde su
+  // lunes movía la semana hasta seis días y daba por perdidos entrenamientos
+  // que sí se hicieron.
+  it('un bloque viejo que empezó en jueves sigue contando desde el jueves', () => {
+    const viejo = { starts_on: '2026-09-17', weeks: 4 } as Program
+    expect(currentWeek(viejo, new Date(2026, 8, 23, 12))).toBe(1)
+    expect(currentWeek(viejo, new Date(2026, 8, 24, 12))).toBe(2)
   })
 })
 

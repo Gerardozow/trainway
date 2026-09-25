@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
+import { mondayOf } from '@/lib/schedule'
+import { todayISO } from '@/lib/utils'
 import type { BlockSummary } from './blockSummary'
 
 /**
@@ -40,6 +42,8 @@ export function generatePlan(
     intake_id: intakeId,
     previous_review: opts.previousReview,
     days: opts.days,
+    // El lunes en la hora de la persona: el Worker solo sabe UTC.
+    week_start: todayISO(mondayOf(new Date())),
   })
 }
 

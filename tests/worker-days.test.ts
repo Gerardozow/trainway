@@ -80,6 +80,14 @@ describe('repairDays', () => {
     expect(out.days.map((d) => d.title)).toEqual(['Día 2', 'Día 4', 'Día 6'])
   })
 
+  // Con más entrenamientos que días elegidos, los que sobran no tienen a dónde
+  // ir: se quedaban en su día, la validación fallaba y la persona se comía un 502.
+  it('si la IA devuelve más días que los elegidos, recorta los que sobran', () => {
+    const out = repairDays(plan([1, 2, 4, 6]), [1, 3, 5])
+    expect(out.days.map((d) => d.day_index)).toEqual([1, 3, 5])
+    expect(validatePlan(out, ids, [1, 3, 5]).ok).toBe(true)
+  })
+
   it('si ya está dentro no toca nada', () => {
     const p = plan([1, 3, 5])
     expect(repairDays(p, [1, 3, 5, 6])).toBe(p)
@@ -112,5 +120,28 @@ describe('mondayISO', () => {
     expect(mondayISO(new Date('2026-09-23T15:00:00Z'))).toBe('2026-09-21')
     expect(mondayISO(new Date('2026-09-27T15:00:00Z'))).toBe('2026-09-21')
     expect(mondayISO(new Date('2026-09-21T00:30:00Z'))).toBe('2026-09-21')
+  })
+})
+
+describe('resolveStartsOn', () => {
+  const now = new Date('2026-09-28T01:30:00Z') // domingo 27, 19:30 en Ciudad de México
+
+  // En UTC ya es lunes 28: el bloque empezaba la semana siguiente y el domingo
+  // ofrecía "Recuperar el lunes" de un lunes que aún no llegaba.
+  it('usa el lunes local que manda el cliente', async () => {
+    const { resolveStartsOn } = await import('../worker/routes/plan')
+    expect(resolveStartsOn('2026-09-21', now)).toBe('2026-09-21')
+  })
+
+  it('sin fecha del cliente cae al lunes en UTC', async () => {
+    const { resolveStartsOn } = await import('../worker/routes/plan')
+    expect(resolveStartsOn(undefined, now)).toBe('2026-09-28')
+  })
+
+  it('ignora una fecha que no es un lunes cercano', async () => {
+    const { resolveStartsOn } = await import('../worker/routes/plan')
+    expect(resolveStartsOn('2026-09-23', now)).toBe('2026-09-28') // miércoles
+    expect(resolveStartsOn('2025-01-06', now)).toBe('2026-09-28') // lunes lejano
+    expect(resolveStartsOn('x', now)).toBe('2026-09-28')
   })
 })

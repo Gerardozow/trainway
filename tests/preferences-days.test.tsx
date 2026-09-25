@@ -94,10 +94,10 @@ describe('Preferencias: tus días', () => {
     await waitFor(() => expect(day('Sábado')).toHaveAttribute('aria-pressed', 'false'))
     await userEvent.click(day('Sábado'))
 
-    expect(screen.getByText(/para aplicar 5 días hay que rehacer el bloque/i)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /guardar cambios/i }))
-    await waitFor(() => expect(createIntake).toHaveBeenCalled())
-    expect(moveProgramDays).not.toHaveBeenCalled()
+    expect(screen.getByText(/para cambiar a 5 días hay que rehacer el bloque/i)).toBeInTheDocument()
+    // Guardar sin rehacer dejaba la cantidad nueva sin los días concretos: no
+    // hay dónde guardarlos fuera del plan.
+    expect(screen.getByRole('button', { name: /guardar cambios/i })).toBeDisabled()
   })
 
   it('rehacer el bloque manda los días elegidos', async () => {

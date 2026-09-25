@@ -190,15 +190,9 @@ export function personalRecords(history: Record<string, SetLog[]>): PersonalReco
   return records.sort((a, b) => b.estimated1rm - a.estimated1rm)
 }
 
-// --- Racha ------------------------------------------------------------------
+// --- Semana y racha ---------------------------------------------------------
 
-/**
- * Entrenamientos completados seguidos, contando hacia atrás desde hoy.
- *
- * Se recorre el plan en orden, no el calendario: así no hace falta saber en qué
- * día de la semana empezó el bloque. El día de hoy no rompe la racha aunque
- * esté sin terminar — todavía da tiempo.
- */
+/** Un día de la semana tal como se pinta en la tira de siete marcas. */
 export type WeekMark = {
   /** 1..7 con lunes = 1, como se guarda en program_days. */
   dayIndex: number
@@ -256,6 +250,7 @@ export function weekMarks(args: {
   })
 }
 
+/** Entrenamientos completados seguidos, por semanas cerradas. */
 export function sessionStreak(args: {
   days: ProgramDay[]
   sessions: WorkoutSession[]

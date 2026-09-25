@@ -109,6 +109,27 @@ describe('Hoy', () => {
   })
 })
 
+describe('Hoy con un día adelantado', () => {
+  // Se adelantó el entrenamiento de hoy otro día: ya está hecho, aunque la
+  // sesión tenga otra fecha.
+  it('no vuelve a ofrecer el entrenamiento de hoy', () => {
+    renderToday([
+      {
+        id: 's1',
+        user_id: 'u1',
+        program_day_id: 'pd1',
+        performed_on: '2026-01-01',
+        started_at: '2026-01-01T10:00:00Z',
+        completed_at: '2026-01-01T11:00:00Z',
+        session_rpe: null,
+        notes: null,
+      },
+    ])
+    expect(screen.queryByRole('link', { name: /empezar entrenamiento/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Hecho. Nos vemos la próxima.')).toBeInTheDocument()
+  })
+})
+
 describe('Hoy sin entrenamiento pero con algo pendiente', () => {
   // Miércoles: el plan tiene lunes, martes y jueves.
   const d = (id: string, day_index: number, title: string): ProgramDay => ({
@@ -177,6 +198,14 @@ describe('Hoy sin entrenamiento pero con algo pendiente', () => {
   it('las tarjetas del día pendiente también entran al entreno', () => {
     renderPending(mar, [done('lun')])
     expect(screen.getByRole('link', { name: /leg press/i })).toHaveAttribute('href', '/sesion/mar')
+  })
+
+  // Recuperar el martes el miércoles ya es el entreno de hoy: ofrecer también
+  // el jueves invitaba a hacer dos seguidos.
+  it('después de recuperar un día, hoy no ofrece otro', () => {
+    renderPending(jue, [done('lun'), { ...done('mar'), performed_on: todayISO() }])
+    expect(screen.queryByRole('link', { name: /adelantar/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/hecho por hoy/i)).toBeInTheDocument()
   })
 
   it('con la semana hecha es día de descanso', () => {

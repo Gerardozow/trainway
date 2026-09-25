@@ -253,8 +253,13 @@ export function normalizeDays(raw: unknown, count: number): number[] | null {
 export function repairDays(plan: AiPlan, allowedDays: number[]): AiPlan {
   if (plan.days.every((d) => allowedDays.includes(d.day_index))) return plan
 
-  const order = [...plan.days].sort((a, b) => a.day_index - b.day_index)
+  // Si trae más entrenamientos que días elegidos, los últimos no tienen día:
+  // mejor una semana más corta que un plan rechazado entero.
+  const order = [...plan.days].sort((a, b) => a.day_index - b.day_index).slice(0, allowedDays.length)
   const target = new Map(order.map((d, i) => [d, allowedDays[i]!]))
 
-  return { ...plan, days: plan.days.map((d) => ({ ...d, day_index: target.get(d) ?? d.day_index })) }
+  return {
+    ...plan,
+    days: plan.days.filter((d) => target.has(d)).map((d) => ({ ...d, day_index: target.get(d)! })),
+  }
 }
