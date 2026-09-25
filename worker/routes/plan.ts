@@ -8,7 +8,7 @@ import { PLAN_TOOL_NAME, PLAN_TOOL_SCHEMA, type AiPlan } from '../lib/schemas'
 import { normalizePlan, repairPlan, validatePlan } from '../lib/validate'
 import { expandBlock, BLOCK_WEEKS } from '../lib/expand'
 
-const CANDIDATE_LIMIT = 90
+const CANDIDATE_LIMIT = 100
 const MAX_PLANS_PER_DAY = 10
 
 type Body = { intake_id?: string; previous_review?: string | null }

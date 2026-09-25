@@ -61,9 +61,9 @@ describe('filterCandidates', () => {
    * modelo nunca vio una sola máquina que poder elegir.
    *
    * La prueba anterior no lo detectaba porque pedía 200 candidatos. El límite
-   * de verdad, el que usa `worker/routes/plan.ts`, es 90.
+   * de verdad, el que usa `worker/routes/plan.ts`, es 100.
    */
-  const LIMITE_REAL = 90
+  const LIMITE_REAL = 100
 
   it('con el límite de verdad el cardio sigue llegando al modelo', () => {
     const out = filterCandidates({
@@ -87,7 +87,7 @@ describe('filterCandidates', () => {
       limit: LIMITE_REAL,
     })
 
-    expect(out).toHaveLength(LIMITE_REAL)
+    expect(out.length).toBeLessThanOrEqual(LIMITE_REAL)
     // Reservar sitio para cardio no puede dejar la sesión sin pesas.
     expect(out.filter((e) => e.category === 'cardio').length).toBeLessThanOrEqual(5)
     expect(out.filter((e) => e.category !== 'cardio').length).toBeGreaterThan(50)
@@ -102,7 +102,7 @@ describe('filterCandidates', () => {
       limit: LIMITE_REAL,
     })
 
-    expect(out).toHaveLength(LIMITE_REAL)
+    expect(out.length).toBeLessThanOrEqual(LIMITE_REAL)
     expect(out.filter((e) => e.category === 'cardio')).toHaveLength(0)
   })
 
@@ -205,6 +205,47 @@ describe('filterCandidates', () => {
     // Un día de pierna o de espalda tiene que poder armarse igual.
     expect(ids).toContain('Leg_Press')
     expect(ids).toContain('Wide-Grip_Lat_Pulldown')
+  })
+
+  const primary = (out: { primaryMuscles: string[] }[], m: string) =>
+    out.filter((e) => e.primaryMuscles.includes(m)).length
+
+  // Con poco equipo hay pocos básicos, y si el foco llenaba el mínimo el resto
+  // de grupos se quedaba sin nada: dos opciones de pierna para un día de pierna.
+  it('solo peso corporal: un foco no deja sin pierna al resto del plan', () => {
+    const out = filterCandidates({
+      equipment: [],
+      level: 'intermedio',
+      focusMuscles: ['abdominals'],
+      includeCardio: false,
+      limit: LIMITE_REAL,
+    })
+    expect(primary(out, 'quadriceps')).toBeGreaterThanOrEqual(8)
+  })
+
+  it('mancuernas: un foco no deja sin pecho al resto del plan', () => {
+    const out = filterCandidates({
+      equipment: ['dumbbell'],
+      level: 'intermedio',
+      focusMuscles: ['abdominals'],
+      includeCardio: false,
+      limit: LIMITE_REAL,
+    })
+    expect(primary(out, 'chest')).toBeGreaterThanOrEqual(8)
+  })
+
+  // Los básicos no cubren antebrazo; si ocupaban todo el límite, pedir énfasis
+  // en antebrazo no ponía ni un ejercicio de antebrazo delante del modelo.
+  it('gimnasio completo: cada músculo del foco tiene candidatos propios', () => {
+    const out = filterCandidates({
+      equipment: ['barbell', 'dumbbell', 'cable', 'machine'],
+      level: 'intermedio',
+      focusMuscles: ['forearms', 'calves'],
+      includeCardio: true,
+      limit: LIMITE_REAL,
+    })
+    expect(primary(out, 'forearms')).toBeGreaterThanOrEqual(3)
+    expect(primary(out, 'calves')).toBeGreaterThanOrEqual(3)
   })
 
   it('todos los básicos existen en el catálogo', () => {

@@ -139,8 +139,11 @@ const EXCLUDED_CATEGORIES = new Set(['stretching'])
 /** Cuántas máquinas de cardio ve el modelo cuando la persona lo pidió. */
 const CARDIO_SLOTS = 5
 
-/** Por debajo de esto se rellena con el resto del catálogo. */
-const MIN_CORE = 40
+/** Por debajo de estos básicos se usa el catálogo entero, sin recortar. */
+const MIN_STAPLES = 40
+
+/** Variantes fuera de los básicos que entran por cada músculo del foco. */
+const FOCUS_EXTRAS = 4
 
 const ALWAYS_AVAILABLE = 'body only'
 
@@ -199,14 +202,28 @@ export function filterCandidates(criteria: Criteria, catalog: Exercise[]): Exerc
   if (!limit) return result
 
   /*
-   * Fuera de los básicos, solo entra lo que ataca el foco. El resto del
-   * catálogo es relleno para cuando el equipamiento deja pocos básicos —solo
-   * mancuernas, solo peso corporal— y el modelo se quedaría sin opciones.
+   * Con equipamiento suficiente, el modelo ve los básicos y unas pocas
+   * variantes por músculo del foco, que van delante para que el recorte nunca
+   * se las lleve: los básicos no cubren antebrazo ni todos los ángulos, y sin
+   * ellas pedir énfasis en un grupo no cambiaba la lista.
+   *
+   * Con poco equipamiento —solo mancuernas, solo peso corporal— hay pocos
+   * básicos y se queda la lista entera ordenada. Recortar ahí dejaba al resto
+   * de grupos con dos opciones mientras el foco se llevaba todo.
    */
-  const core = result.filter(
-    (e) => e.category === 'cardio' || STAPLES.has(e.id) || e.primaryMuscles.some((m) => focus.has(m)),
-  )
-  if (core.filter((e) => e.category !== 'cardio').length >= MIN_CORE) result = core
+  const strength = result.filter((e) => e.category !== 'cardio')
+  const staples = strength.filter((e) => STAPLES.has(e.id))
+  if (staples.length >= MIN_STAPLES) {
+    const extras: Exercise[] = []
+    for (const m of focusMuscles) {
+      extras.push(
+        ...strength
+          .filter((e) => !STAPLES.has(e.id) && !extras.includes(e) && e.primaryMuscles.includes(m))
+          .slice(0, FOCUS_EXTRAS),
+      )
+    }
+    result = [...extras, ...staples, ...result.filter((e) => e.category === 'cardio')]
+  }
 
   /*
    * El cardio necesita sitio reservado.
