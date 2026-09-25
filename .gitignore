@@ -35,3 +35,6 @@ Thumbs.db
 # Registros
 *.log
 npm-debug.log*
+
+# Espacio de trabajo de los agentes
+.superpowers/
