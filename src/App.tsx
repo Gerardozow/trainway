@@ -35,13 +35,21 @@ const FULLSCREEN = ['/sesion/', '/empezar', '/entrar']
  */
 const NO_INTERRUMPIR = ['/sesion/', '/empezar']
 
-function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const bare = FULLSCREEN.some((p) => pathname.startsWith(p))
   const puedeAvisar = !NO_INTERRUMPIR.some((p) => pathname.startsWith(p))
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    // La PWA de iPhone usa black-translucent + viewport-fit=cover: la página
+    // empieza debajo de la hora y la batería. El padding la baja lo que mide la
+    // barra, y la franja fija tapa lo que pasa por debajo al hacer scroll.
+    <div className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)]">
+      <div
+        data-status-bar
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 z-30 h-[env(safe-area-inset-top)] bg-[var(--bg)]"
+      />
       {children}
       <AppUpdatePrompt enabled={puedeAvisar} aboveNav={!bare} />
       {!bare && <BottomNav />}

@@ -480,7 +480,7 @@ export function Session() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--bg)]/95 backdrop-blur">
+      <header className="sticky top-[env(safe-area-inset-top)] z-10 border-b border-[var(--line)] bg-[var(--bg)]/95 backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center gap-1 px-2 py-1">
           <button
             type="button"
@@ -562,7 +562,7 @@ export function Session() {
           />
         ))}
 
-        <section id="cerrar-sesion" className="strip flex flex-col gap-3 scroll-mt-20 p-4">
+        <section id="cerrar-sesion" className="strip flex flex-col gap-3 scroll-mt-[calc(5rem+env(safe-area-inset-top))] p-4">
           <h2 className="display text-lg">Cerrar la sesión</h2>
 
           <div className="flex flex-col gap-1.5">

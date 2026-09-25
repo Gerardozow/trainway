@@ -104,6 +104,14 @@ describe('avance automático de la sesión', () => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn()
   })
 
+  // Pegada a top-0, en la PWA de iPhone la cabecera quedaba bajo la barra de
+  // estado y el botón de volver no se podía tocar.
+  it('la cabecera se pega por debajo de la barra de estado', async () => {
+    renderSession()
+    await waitFor(() => expect(abierta()).toBeDefined())
+    expect(screen.getByRole('banner').className).toMatch(/top-\[env\(safe-area-inset-top\)\]/)
+  })
+
   it('abre el primer ejercicio sin terminar', async () => {
     renderSession()
     await waitFor(() => expect(abierta()).toBeDefined())

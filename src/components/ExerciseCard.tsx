@@ -84,7 +84,7 @@ export function ExerciseCard({
     <article
       id={`ejercicio-${exercise.id}`}
       className={cn(
-        'strip scroll-mt-20 overflow-hidden transition-opacity duration-300',
+        'strip scroll-mt-[calc(5rem+env(safe-area-inset-top))] overflow-hidden transition-opacity duration-300',
         complete && !expanded && 'opacity-60',
       )}
     >

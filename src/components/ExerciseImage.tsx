@@ -132,7 +132,9 @@ export function ExerciseImage({
             por ejercicio que nadie había pedido ver. */}
         {open && (
           <div className="flex h-full flex-col bg-neutral-950">
-            <div className="flex shrink-0 items-start justify-between gap-3 px-4 pt-3 pb-1">
+            {/* La PWA de iPhone pinta bajo una barra de estado translúcida: sin este
+                margen, la ✕ quedaba debajo de la hora y no había forma de salir. */}
+            <div className="flex shrink-0 items-start justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
               <h2 className="display min-w-0 text-lg leading-tight text-balance">{alt}</h2>
               <button
                 type="button"
