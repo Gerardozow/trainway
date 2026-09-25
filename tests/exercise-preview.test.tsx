@@ -89,6 +89,13 @@ describe('ExercisePreview', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
+  // Dentro de una rejilla con <li className="flex">, sin esto la tarjeta se
+  // encogía al ancho del texto y las fotos quedaban diminutas.
+  it('ocupa todo el ancho que le den', () => {
+    renderPreview({ exercise: ex(), translation })
+    expect(screen.getByRole('article')).toHaveClass('w-full')
+  })
+
   it('un id que ya no está en el catálogo no pinta nada', () => {
     const { container } = renderPreview({ exercise: ex({ exercise_id: 'No_Existe' }) })
     expect(container).toBeEmptyDOMElement()

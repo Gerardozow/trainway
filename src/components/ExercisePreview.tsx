@@ -46,7 +46,7 @@ export function ExercisePreview({
   )
 
   return (
-    <article className="strip flex flex-col overflow-hidden">
+    <article className="strip flex w-full flex-col overflow-hidden">
       {isCardio ? (
         // Una máquina de cardio no necesita dos fotos para entenderse.
         <div className="grid h-20 place-items-center bg-[var(--surface-2)]">
