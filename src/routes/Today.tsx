@@ -10,17 +10,17 @@ import {
   getTranslations,
 } from '@/lib/supabase/queries'
 import { supabase } from '@/lib/supabase/client'
-import { getExercise, muscleEs } from '@/lib/catalog'
+import { muscleEs } from '@/lib/catalog'
 import { sessionStreak, weekMarks, type WeekMark } from '@/lib/history'
 import { dayName, isoDayIndex, todayISO } from '@/lib/utils'
-import type { ProgramDay, ProgramExercise } from '@/lib/supabase/types'
+import type { ExerciseTranslation, ProgramDay, ProgramExercise } from '@/lib/supabase/types'
 import { EmptyState, Spinner } from '@/components/ui'
 import { WeekMarks } from '@/components/WeekMarks'
 import { buttonClass } from '@/components/ui/Button'
 import { Wordmark } from '@/components/Wordmark'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { SyncIndicator } from '@/components/SyncIndicator'
-import { ExerciseImage } from '@/components/ExerciseImage'
+import { ExercisePreview } from '@/components/ExercisePreview'
 import { InstallBanner } from '@/components/InstallCard'
 import { db } from '@/lib/offline'
 import { raceWithFallback } from '@/lib/net'
@@ -117,6 +117,36 @@ async function loadToday(userId: string) {
   return payload
 }
 
+/** La semana en una línea: qué días tocan y cuáles ya están hechos. */
+function WeekHeader({ marks }: { marks: WeekMark[] }) {
+  const hechos = marks.filter((m) => m.done).length
+  const previstos = marks.filter((m) => m.planned).length
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="eyebrow">Esta semana</p>
+        <p className="num text-sm text-[var(--fg-muted)]">
+          {hechos} de {previstos}
+        </p>
+      </div>
+      <WeekMarks marks={marks} />
+    </div>
+  )
+}
+
+/**
+ * En día de entrenamiento la semana también va arriba: es lo que sostiene la
+ * constancia, y antes solo se veía los días que no tocaba entrenar.
+ */
+function WeekSummary({ marks }: { marks: WeekMark[] }) {
+  return (
+    <section className="strip p-4">
+      <WeekHeader marks={marks} />
+    </section>
+  )
+}
+
 /**
  * El día de descanso.
  *
@@ -125,20 +155,9 @@ async function loadToday(userId: string) {
  * enseñando la semana, donde se ve que está previsto y que lo hecho está hecho.
  */
 function RestDay({ marks, next }: { marks: WeekMark[]; next: ProgramDay | null }) {
-  const hechos = marks.filter((m) => m.done).length
-  const previstos = marks.filter((m) => m.planned).length
-
   return (
     <section className="strip flex flex-col gap-5 p-5">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="eyebrow">Esta semana</p>
-          <p className="num text-sm text-[var(--fg-muted)]">
-            {hechos} de {previstos}
-          </p>
-        </div>
-        <WeekMarks marks={marks} />
-      </div>
+      <WeekHeader marks={marks} />
 
       <div className="flex flex-col gap-1.5">
         <h1 className="display text-2xl">Hoy toca descansar</h1>
@@ -167,7 +186,7 @@ function RestDay({ marks, next }: { marks: WeekMark[]; next: ProgramDay | null }
   )
 }
 
-function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean }) {
+export function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean }) {
   // Sin plan activo, el sitio del usuario es el wizard. Pero solo cuando la
   // respuesta es fresca: redirigir con datos en vuelo manda al cuestionario a
   // quien acaba de crear su plan.
@@ -208,7 +227,7 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="mx-auto flex w-full max-w-lg items-center justify-between px-4 pt-4">
+      <header className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 pt-4">
         <div className="flex flex-col gap-0.5">
           <Wordmark className="h-6" />
           <p className="eyebrow">
@@ -231,7 +250,7 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-4 px-4 py-6">
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6">
         {data.offline && (
           <p className="flex items-center gap-2 text-sm text-[var(--fg-muted)]">
             <CloudOff className="size-4 shrink-0" aria-hidden />
@@ -245,6 +264,8 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
           <RestDay marks={marks} next={upcoming[0] ?? null} />
         ) : (
           <>
+            <WeekSummary marks={marks} />
+
             <section className="flex flex-col gap-1">
               <p className="eyebrow">{dayName(day.day_index)}</p>
               <h1 className="display text-3xl">{day.title}</h1>
@@ -265,52 +286,20 @@ function TodayView({ data, isFetching }: { data: TodayData; isFetching: boolean 
               )}
             </section>
 
-            <ul className="flex flex-col gap-2">
-              {exercises.map((ex) => {
-                const catalog = getExercise(ex.exercise_id)
-                if (!catalog) return null
-                const name =
-                  (translations as Record<string, { name: string }>)[ex.exercise_id]?.name ??
-                  catalog.name
-
-                const resumen =
-                  ex.category === 'cardio'
-                    ? `${Math.round((ex.target_duration_seconds ?? 0) / 60)} min`
-                    : `${ex.target_sets} × ${ex.target_reps ?? ''}`
-
-                const contenido = (
-                  <>
-                    <ExerciseImage images={catalog.images} alt={name} className="size-14" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-bold leading-tight">{name}</span>
-                      <span className="block text-xs text-[var(--fg-muted)]">
-                        {ex.category === 'cardio'
-                          ? 'Cardio'
-                          : catalog.primaryMuscles.map(muscleEs).join(' · ')}
-                      </span>
-                    </span>
-                    <span className="num shrink-0 text-base text-[var(--fg-muted)]">{resumen}</span>
-                  </>
-                )
-
-                return (
-                  <li key={ex.id} className="strip overflow-hidden">
-                    {/* Tocar un ejercicio entra al entrenamiento.
-                        Antes no era nada: el dedo sobre la fila solo conseguía
-                        seleccionar el nombre y sacar la barra de copiar. */}
-                    {isDone ? (
-                      <div className="flex items-center gap-3 p-2.5">{contenido}</div>
-                    ) : (
-                      <Link
-                        to={`/sesion/${day.id}`}
-                        className="press flex items-center gap-3 p-2.5 active:bg-[var(--surface-2)]"
-                      >
-                        {contenido}
-                      </Link>
-                    )}
-                  </li>
-                )
-              })}
+            {/* Dos columnas solo cuando hay sitio: en el teléfono, una foto
+                partida en dos a media pantalla no deja ver el movimiento. */}
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {exercises.map((ex) => (
+                <li key={ex.id} className="flex">
+                  <ExercisePreview
+                    exercise={ex}
+                    translation={(translations as Record<string, ExerciseTranslation>)[ex.exercise_id]}
+                    // Tocar un ejercicio entra al entrenamiento, salvo que ya
+                    // esté hecho: ahí no hay nada a lo que entrar.
+                    href={isDone ? undefined : `/sesion/${day.id}`}
+                  />
+                </li>
+              ))}
             </ul>
 
             {isDone ? (
