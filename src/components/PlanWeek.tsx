@@ -47,6 +47,7 @@ export function PlanWeek({
         .sort((a, b) => a.position - b.position)
     : []
 
+  const selectedDone = selected ? completed.has(selected.id) : false
   const summary = planSummary(weekExercises, weekDays.length)
   const doneCount = weekDays.filter((d) => completed.has(d.id)).length
 
@@ -178,22 +179,31 @@ export function PlanWeek({
           <ul className="grid gap-3 sm:grid-cols-2">
             {dayExercises.map((ex) => (
               <li key={ex.id} className="flex">
-                <ExercisePreview exercise={ex} translation={translations[ex.exercise_id]} />
+                <ExercisePreview
+                  exercise={ex}
+                  translation={translations[ex.exercise_id]}
+                  href={selectedDone ? undefined : `/sesion/${selected.id}`}
+                />
               </li>
             ))}
           </ul>
 
-          <Link
-            to={`/sesion/${selected.id}`}
-            className={buttonClass({
-              variant: completed.has(selected.id) ? 'outline' : 'volt',
-              size: 'lg',
-              full: true,
-            })}
-          >
-            {completed.has(selected.id) ? 'Ver lo que hiciste' : 'Entrenar este día'}
-            <ChevronRight className="size-5" aria-hidden />
-          </Link>
+          {/* Un día hecho no enlaza a la sesión: /sesion abre una nueva con
+              fecha de hoy y las series vacías, no enseña lo que se hizo. */}
+          {selectedDone ? (
+            <p className="flex items-center justify-center gap-2 rounded-xl border border-volt bg-volt/10 px-4 py-4 font-bold">
+              <Check className="size-5" strokeWidth={3} aria-hidden />
+              Día completado
+            </p>
+          ) : (
+            <Link
+              to={`/sesion/${selected.id}`}
+              className={buttonClass({ variant: 'volt', size: 'lg', full: true })}
+            >
+              Entrenar este día
+              <ChevronRight className="size-5" aria-hidden />
+            </Link>
+          )}
         </section>
       )}
     </div>

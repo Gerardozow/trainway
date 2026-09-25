@@ -115,6 +115,24 @@ describe('PlanWeek', () => {
     expect(screen.queryByRole('link', { name: /entrenar este día/i })).not.toBeInTheDocument()
   })
 
+  // Entrar a /sesion de un día ya hecho no enseña lo que se hizo: abre una
+  // sesión nueva con fecha de hoy y las series vacías.
+  it('un día ya hecho no ofrece entrar a la sesión', () => {
+    renderWeek(['w1d1'])
+    return userEvent.click(screen.getByRole('button', { name: /tren superior/i })).then(() => {
+      expect(within(detail()).queryByRole('link')).not.toBeInTheDocument()
+      expect(within(detail()).getByText(/día completado/i)).toBeInTheDocument()
+    })
+  })
+
+  it('en un día pendiente, tocar un ejercicio entra al entreno', () => {
+    renderWeek()
+    expect(within(detail()).getByRole('link', { name: /bench press/i })).toHaveAttribute(
+      'href',
+      '/sesion/w1d1',
+    )
+  })
+
   it('enseña el progreso de la semana', () => {
     renderWeek(['w1d1'])
     expect(screen.getByText(/1 de 2 entrenamientos/i)).toBeInTheDocument()
