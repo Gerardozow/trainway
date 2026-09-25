@@ -56,13 +56,24 @@ function safeUserText(text: string | null, max = 2000): string {
   return text.slice(0, max).replace(/```/g, "'''")
 }
 
+/** Qué días de la semana puede usar la IA. */
+export function dayRule(days: number[] | null, count: number): string {
+  if (!days) {
+    return 'Asigna day_index repartiendo los días con descanso entre sesiones exigentes (1 = lunes).'
+  }
+  const cuales = days.length === count ? 'exactamente estos' : `${count} de estos`
+  return `Usa ${cuales} day_index: ${days.join(', ')} (1 = lunes). Son los días que la persona puede ir; no uses otros. Reparte el trabajo para que un mismo grupo muscular no caiga en días seguidos.`
+}
+
 export function buildPlanPrompt(args: {
   intake: Intake
   candidates: Exercise[]
   blockNumber: number
   previousReview: string | null
+  /** Días que eligió la persona, ya normalizados. */
+  days?: number[] | null
 }): string {
-  const { intake, candidates, blockNumber, previousReview } = args
+  const { intake, candidates, blockNumber, previousReview, days = null } = args
 
   const catalog = candidates
     .map((c) => {
@@ -96,7 +107,7 @@ ${catalog}
 
 TAREA
 Diseña ${intake.days_per_week} días de entrenamiento para UNA semana usando exclusivamente los id de arriba.
-Asigna day_index repartiendo los días con descanso entre sesiones exigentes (1 = lunes).
+${dayRule(days, intake.days_per_week)}
 Entrega el resultado con la herramienta.`
 }
 

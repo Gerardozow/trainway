@@ -5,13 +5,20 @@ import { db } from '../lib/supabase'
 import { callStructured, createMinimax, MINIMAX_MODEL } from '../lib/minimax'
 import { buildPlanPrompt, PLAN_SYSTEM_PROMPT } from '../lib/prompt'
 import { PLAN_TOOL_NAME, PLAN_TOOL_SCHEMA, type AiPlan } from '../lib/schemas'
-import { normalizePlan, repairPlan, validatePlan } from '../lib/validate'
+import { normalizeDays, normalizePlan, repairDays, repairPlan, validatePlan } from '../lib/validate'
 import { expandBlock, BLOCK_WEEKS } from '../lib/expand'
 
 const CANDIDATE_LIMIT = 100
+
+/** El lunes de la semana de esa fecha, en UTC como el resto de fechas del Worker. */
+export function mondayISO(date: Date): string {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
+  return d.toISOString().slice(0, 10)
+}
 const MAX_PLANS_PER_DAY = 10
 
-type Body = { intake_id?: string; previous_review?: string | null }
+type Body = { intake_id?: string; previous_review?: string | null; days?: unknown }
 
 /**
  * Genera un bloque de 4 semanas.
@@ -52,6 +59,7 @@ export async function handlePlan(req: Request, env: Env, userId: string, token: 
     limit: CANDIDATE_LIMIT,
   })
   const candidateIds = candidates.map((c) => c.id)
+  const days = normalizeDays(body.days, intake.days_per_week)
 
   const previous = await sql.select<Program[]>(
     `programs?select=block_number&user_id=eq.${userId}&order=block_number.desc&limit=1`,
@@ -64,6 +72,7 @@ export async function handlePlan(req: Request, env: Env, userId: string, token: 
     candidates,
     blockNumber,
     previousReview: body.previous_review ?? null,
+    days,
   })
 
   // Primer intento.
@@ -73,7 +82,7 @@ export async function handlePlan(req: Request, env: Env, userId: string, token: 
     toolName: PLAN_TOOL_NAME,
     toolSchema: PLAN_TOOL_SCHEMA,
   })
-  let result = validatePlan(normalizePlan(raw), candidateIds)
+  let result = validatePlan(normalizePlan(raw), candidateIds, days)
 
   // Segundo intento, devolviéndole exactamente qué hizo mal.
   if (!result.ok) {
@@ -86,7 +95,7 @@ ${result.errors.map((e) => `- ${e}`).join('\n')}`,
       toolName: PLAN_TOOL_NAME,
       toolSchema: PLAN_TOOL_SCHEMA,
     })
-    result = validatePlan(normalizePlan(raw), candidateIds)
+    result = validatePlan(normalizePlan(raw), candidateIds, days)
   }
 
   // Reparación: sustituye lo inválido en vez de dejar al usuario sin plan.
@@ -94,8 +103,9 @@ ${result.errors.map((e) => `- ${e}`).join('\n')}`,
   if (result.ok) {
     plan = result.plan
   } else {
-    const repaired = repairPlan(raw as AiPlan, candidates)
-    const check = validatePlan(repaired, candidateIds)
+    let repaired = repairPlan(raw as AiPlan, candidates)
+    if (days) repaired = repairDays(repaired, days)
+    const check = validatePlan(repaired, candidateIds, days)
     if (!check.ok) {
       throw new HttpError(
         'La IA no logró armar un plan válido. Inténtalo otra vez en un momento.',
@@ -114,7 +124,9 @@ ${result.errors.map((e) => `- ${e}`).join('\n')}`,
     name: plan.block_name,
     block_number: blockNumber,
     weeks: BLOCK_WEEKS,
-    starts_on: new Date().toISOString().slice(0, 10),
+    // El lunes de esta semana: las semanas del bloque van de lunes a domingo
+    // porque los días del plan son días de la semana.
+    starts_on: mondayISO(new Date()),
     status: 'active',
     ai_model: MINIMAX_MODEL,
     ai_rationale: plan.rationale,

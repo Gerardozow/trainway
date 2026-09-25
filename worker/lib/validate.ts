@@ -159,7 +159,12 @@ function validateDay(raw: unknown, allowed: Set<string>, index: number, errors: 
   return typeof dayIndex === 'number' ? dayIndex : null
 }
 
-export function validatePlan(raw: unknown, candidateIds: string[]): ValidationResult {
+export function validatePlan(
+  raw: unknown,
+  candidateIds: string[],
+  /** Los días que eligió la persona. Sin ellos, la IA reparte como quiera. */
+  allowedDays?: number[] | null,
+): ValidationResult {
   const errors: string[] = []
   const allowed = new Set(candidateIds)
 
@@ -183,6 +188,9 @@ export function validatePlan(raw: unknown, candidateIds: string[]): ValidationRe
     const dayIndex = validateDay(d, allowed, i, errors)
     if (dayIndex !== null) {
       if (seen.has(dayIndex)) errors.push(`day_index ${dayIndex} está repetido`)
+      if (allowedDays && !allowedDays.includes(dayIndex)) {
+        errors.push(`day_index ${dayIndex} no es un día que la persona eligió (${allowedDays.join(', ')})`)
+      }
       seen.add(dayIndex)
     }
   })
@@ -222,4 +230,31 @@ export function repairPlan(plan: AiPlan, candidates: Exercise[]): AiPlan {
   })
 
   return { ...plan, days }
+}
+
+/**
+ * Los días que manda el cliente, limpios: enteros de 1 a 7, sin repetir y en
+ * orden. Si no alcanzan para los días de la semana del cuestionario, no sirven
+ * y la IA reparte como antes — mejor un plan en otros días que ningún plan.
+ */
+export function normalizeDays(raw: unknown, count: number): number[] | null {
+  if (!Array.isArray(raw)) return null
+  const days = [
+    ...new Set(raw.filter((d): d is number => Number.isInteger(d) && d >= 1 && d <= 7)),
+  ].sort((a, b) => a - b)
+  return days.length >= count ? days : null
+}
+
+/**
+ * Último recurso si la IA insiste en otros días: el primer entrenamiento de su
+ * semana pasa al primer día elegido, el segundo al segundo. Conserva el orden
+ * que ella pensó y nunca tira el plan por esto.
+ */
+export function repairDays(plan: AiPlan, allowedDays: number[]): AiPlan {
+  if (plan.days.every((d) => allowedDays.includes(d.day_index))) return plan
+
+  const order = [...plan.days].sort((a, b) => a.day_index - b.day_index)
+  const target = new Map(order.map((d, i) => [d, allowedDays[i]!]))
+
+  return { ...plan, days: plan.days.map((d) => ({ ...d, day_index: target.get(d) ?? d.day_index })) }
 }
