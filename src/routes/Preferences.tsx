@@ -3,11 +3,16 @@ import { useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Check, Sparkles } from 'lucide-react'
 import { useAuth } from '@/lib/supabase/useAuth'
-import { createIntake, getLatestIntake } from '@/lib/supabase/queries'
+import {
+  createIntake,
+  getActiveProgram,
+  getLatestIntake,
+  getProgramDays,
+  moveProgramDays,
+} from '@/lib/supabase/queries'
 import { generatePlan, translateExercises } from '@/lib/api'
 import { EQUIPMENT_ES, FOCUS_GROUPS } from '@/lib/catalog'
 import {
-  DAYS_OPTIONS,
   EQUIPMENT_OPTIONS,
   EXPERIENCES,
   GOALS,
@@ -18,10 +23,12 @@ import {
 } from '@/lib/intakeOptions'
 import type { Experience, Goal } from '@/lib/supabase/types'
 import { BigOption, Button, Chip, Spinner, Textarea } from '@/components/ui'
+import { WeekdayPicker } from '@/components/WeekdayPicker'
 
 type Draft = {
   goal: Goal
-  daysPerWeek: number
+  /** day_index elegidos, ordenados. */
+  days: number[]
   sessionMinutes: number
   experience: Experience
   equipment: string[]
@@ -60,12 +67,29 @@ export function Preferences() {
     queryFn: () => getLatestIntake(user!.id),
   })
 
+  // Los días viven en el plan activo, no en el cuestionario: son los que de
+  // verdad se van a entrenar, y es lo que hay que mover si cambian.
+  const { data: active, isLoading: loadingActive } = useQuery({
+    queryKey: ['active-days', user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const program = await getActiveProgram(user!.id)
+      if (!program) return null
+      const days = await getProgramDays(program.id)
+      return {
+        programId: program.id,
+        days: [...new Set(days.map((d) => d.day_index))].sort((a, b) => a - b),
+      }
+    },
+  })
+
   // El borrador se siembra una vez con lo que había respondido.
   useEffect(() => {
-    if (!intake || draft) return
+    if (!intake || draft || loadingActive) return
     const inicial: Draft = {
       goal: intake.goal,
-      daysPerWeek: intake.days_per_week,
+      // Sin plan activo no hay días que respetar: los primeros N de la semana.
+      days: active?.days ?? Array.from({ length: intake.days_per_week }, (_, i) => i + 1),
       sessionMinutes: intake.session_minutes,
       experience: intake.experience,
       equipment: intake.equipment,
@@ -76,7 +100,7 @@ export function Preferences() {
     }
     original.current = inicial
     setDraft(inicial)
-  }, [intake, draft])
+  }, [intake, draft, active, loadingActive])
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev))
@@ -104,7 +128,7 @@ export function Preferences() {
     const intake = await createIntake({
       user_id: user.id,
       goal: draft.goal,
-      days_per_week: draft.daysPerWeek,
+      days_per_week: draft.days.length,
       session_minutes: draft.sessionMinutes,
       experience: draft.experience,
       equipment: draft.equipment,
@@ -122,6 +146,17 @@ export function Preferences() {
     setError(null)
     try {
       await save()
+
+      // Mismos días en número pero otros: se mueven en el bloque en curso. Con
+      // otra cantidad no hay forma de repartir sin rehacerlo, y eso se avisa.
+      if (
+        active &&
+        draft &&
+        draft.days.length === active.days.length &&
+        draft.days.some((d, i) => d !== active.days[i])
+      ) {
+        await moveProgramDays(active.programId, active.days, draft.days)
+      }
       // La sesión lee el equipamiento del cuestionario más reciente para
       // ofrecer alternativas: sin esto seguiría ofreciendo la máquina que ya no
       // existe hasta que caducara la caché.
@@ -143,7 +178,7 @@ export function Preferences() {
       const intakeId = await save()
       if (!intakeId) return
 
-      const plan = await generatePlan(intakeId)
+      const plan = await generatePlan(intakeId, { days: draft!.days })
       await translateExercises(plan.exercise_ids)
 
       queryClient.removeQueries()
@@ -213,14 +248,13 @@ export function Preferences() {
         </div>
       </Field>
 
-      <Field label="Días por semana">
-        <div className="grid grid-cols-3 gap-2">
-          {DAYS_OPTIONS.map((d) => (
-            <Chip key={d} selected={draft.daysPerWeek === d} onClick={() => set('daysPerWeek', d)}>
-              <span className="num text-xl">{d}</span>
-            </Chip>
-          ))}
-        </div>
+      <Field label="Tus días">
+        <WeekdayPicker value={draft.days} onChange={(days) => set('days', days)} />
+        {active && draft.days.length >= 2 && draft.days.length !== active.days.length && (
+          <p className="text-sm text-[var(--fg-muted)]">
+            {`Para aplicar ${draft.days.length} días hay que rehacer el bloque. Guardar solo actualiza tus respuestas.`}
+          </p>
+        )}
       </Field>
 
       <Field label="Duración de la sesión">
@@ -343,7 +377,7 @@ export function Preferences() {
             variant="outline"
             size="lg"
             full
-            disabled={draft.equipment.length === 0}
+            disabled={draft.equipment.length === 0 || draft.days.length < 2}
             onClick={() => setConfirmRegen(true)}
           >
             <Sparkles className="size-5" aria-hidden />
@@ -359,7 +393,7 @@ export function Preferences() {
           variant="volt"
           size="lg"
           full
-          disabled={saving || !dirty || draft.equipment.length === 0}
+          disabled={saving || !dirty || draft.equipment.length === 0 || draft.days.length < 2}
           onClick={() => void onSave()}
         >
           {saving ? <Spinner /> : saved && !dirty ? <Check className="size-5" aria-hidden /> : null}

@@ -117,7 +117,12 @@ export function PlanView() {
         free_notes: base?.free_notes ?? null,
       })
 
-      const plan = await generatePlan(intake.id, { previousReview: review.notes_for_next_block })
+      // Los días del bloque que termina siguen siendo los de la persona. Si la
+      // revisión baja la cantidad, la IA elige entre ellos.
+      const plan = await generatePlan(intake.id, {
+        previousReview: review.notes_for_next_block,
+        days: [...new Set(days.map((d) => d.day_index))].sort((a, b) => a - b),
+      })
       await translateExercises(plan.exercise_ids)
       await refetch()
       navigate('/', { replace: true })

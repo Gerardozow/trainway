@@ -1,5 +1,5 @@
 import { supabase } from './client'
-import { mondayOf } from '@/lib/schedule'
+import { mondayOf, planMoves } from '@/lib/schedule'
 import type {
   DayWithExercises,
   ExerciseTranslation,
@@ -281,6 +281,30 @@ export async function swapExercise(args: {
       .eq('position', current.position)
       .select(),
   )
+}
+
+/**
+ * Pasa el bloque a otros días de la semana sin rehacerlo.
+ *
+ * Cada movimiento cambia ese día en las cuatro semanas a la vez, así que las
+ * semanas nunca quedan desalineadas y "cambiar en todo el bloque" sigue
+ * encontrando el mismo día en todas. El orden lo decide `planMoves` para no
+ * chocar con la regla de un entrenamiento por día y semana.
+ *
+ * No es atómico: si un paso falla, lo ya movido se queda y el resto no. Ninguna
+ * fila se pierde y volver a guardar termina el trabajo.
+ */
+export async function moveProgramDays(programId: string, from: number[], to: number[]) {
+  for (const move of planMoves(from, to)) {
+    unwrap(
+      await supabase
+        .from('program_days')
+        .update({ day_index: move.to })
+        .eq('program_id', programId)
+        .eq('day_index', move.from)
+        .select(),
+    )
+  }
 }
 
 /** El cuestionario más reciente: de ahí sale el equipamiento disponible. */
