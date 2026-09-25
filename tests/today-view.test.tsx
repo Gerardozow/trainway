@@ -10,6 +10,11 @@ import type { Program, ProgramDay, ProgramExercise, WorkoutSession } from '@/lib
 vi.mock('@/components/SyncIndicator', () => ({ SyncIndicator: () => null }))
 vi.mock('@/components/InstallCard', () => ({ InstallBanner: () => null }))
 vi.mock('@/components/ThemeToggle', () => ({ ThemeToggle: () => null }))
+// Siempre miércoles: "recuperar" o "adelantar" depende del día en que se mire.
+vi.mock('@/lib/utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/utils')>()),
+  isoDayIndex: () => 3,
+}))
 
 const day: ProgramDay = {
   id: 'pd1',
@@ -101,5 +106,81 @@ describe('Hoy', () => {
   it('enseña la semana también en día de entrenamiento', () => {
     renderToday()
     expect(screen.getByText('Esta semana')).toBeInTheDocument()
+  })
+})
+
+describe('Hoy sin entrenamiento pero con algo pendiente', () => {
+  // Miércoles: el plan tiene lunes, martes y jueves.
+  const d = (id: string, day_index: number, title: string): ProgramDay => ({
+    id,
+    program_id: 'p1',
+    week: 1,
+    day_index,
+    title,
+    focus: ['quadriceps'],
+    is_deload: false,
+  })
+  const lun = d('lun', 1, 'Tren superior')
+  const mar = d('mar', 2, 'Tren inferior')
+  const jue = d('jue', 4, 'Espalda')
+
+  const done = (programDayId: string): WorkoutSession => ({
+    id: `s-${programDayId}`,
+    user_id: 'u1',
+    program_day_id: programDayId,
+    performed_on: '2026-09-21',
+    started_at: '2026-09-21T10:00:00Z',
+    completed_at: '2026-09-21T11:00:00Z',
+    session_rpe: null,
+    notes: null,
+  })
+
+  const pendingData = (pending: ProgramDay | null, sessions: WorkoutSession[]) =>
+    ({
+      program,
+      week: 1,
+      day: null,
+      pending,
+      days: [lun, mar, jue],
+      exercises: pending ? [{ ...exercise, program_day_id: pending.id }] : [],
+      translations: {},
+      sessions,
+      upcoming: [jue],
+      offline: false,
+    }) as unknown as Parameters<typeof TodayView>[0]['data']
+
+  const renderPending = (pending: ProgramDay | null, sessions: WorkoutSession[] = []) =>
+    render(
+      <MemoryRouter>
+        <TodayView data={pendingData(pending, sessions)} isFetching={false} />
+      </MemoryRouter>,
+    )
+
+  it('ofrece recuperar un día que ya pasó', () => {
+    renderPending(mar, [done('lun')])
+    expect(screen.getByText(/hoy no estaba en tu plan/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Tren inferior' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /recuperar el martes/i })).toHaveAttribute(
+      'href',
+      '/sesion/mar',
+    )
+  })
+
+  it('ofrece adelantar uno que viene', () => {
+    renderPending(jue, [done('lun'), done('mar')])
+    expect(screen.getByRole('link', { name: /adelantar el jueves/i })).toHaveAttribute(
+      'href',
+      '/sesion/jue',
+    )
+  })
+
+  it('las tarjetas del día pendiente también entran al entreno', () => {
+    renderPending(mar, [done('lun')])
+    expect(screen.getByRole('link', { name: /leg press/i })).toHaveAttribute('href', '/sesion/mar')
+  })
+
+  it('con la semana hecha es día de descanso', () => {
+    renderPending(null, [done('lun'), done('mar'), done('jue')])
+    expect(screen.getByText('Hoy toca descansar')).toBeInTheDocument()
   })
 })

@@ -24,6 +24,7 @@ import { ExercisePreview } from '@/components/ExercisePreview'
 import { InstallBanner } from '@/components/InstallCard'
 import { db } from '@/lib/offline'
 import { raceWithFallback } from '@/lib/net'
+import { pendingDay } from '@/lib/schedule'
 
 export function Today() {
   const { user } = useAuth()
@@ -83,14 +84,19 @@ async function loadToday(userId: string) {
     days.map((d) => d.id),
   )
 
+  // Si hoy no toca, lo primero que falte de la semana: se puede ir otro día.
+  const completed = new Set(sessions.filter((s) => s.completed_at).map((s) => s.program_day_id))
+  const pending = day ? null : pendingDay(days, completed, week, todayIndex)
+  const shown = day ?? pending
+
   let exercises: ProgramExercise[] = []
   let translations = {}
 
-  if (day) {
+  if (shown) {
     const { data: rows } = await supabase
       .from('program_exercises')
       .select('*')
-      .eq('program_day_id', day.id)
+      .eq('program_day_id', shown.id)
       .order('position')
     exercises = (rows ?? []) as ProgramExercise[]
     translations = await getTranslations(exercises.map((e) => e.exercise_id))
@@ -104,6 +110,7 @@ async function loadToday(userId: string) {
     program,
     week,
     day,
+    pending,
     days,
     exercises,
     translations,
@@ -144,6 +151,61 @@ function WeekSummary({ marks }: { marks: WeekMark[] }) {
     <section className="strip p-4">
       <WeekHeader marks={marks} />
     </section>
+  )
+}
+
+/**
+ * Hoy no toca, pero la semana tiene algo pendiente.
+ *
+ * El plan pone días fijos y la vida no: quien no pudo el martes va el
+ * miércoles. Antes eso era "Hoy toca descansar" y había que ir a Plan a
+ * buscar el día; ahora se ofrece aquí, y hecho cuenta en su día original.
+ */
+function PendingDay({
+  pending,
+  marks,
+  exercises,
+  translations,
+}: {
+  pending: ProgramDay
+  marks: WeekMark[]
+  exercises: ProgramExercise[]
+  translations: Record<string, ExerciseTranslation>
+}) {
+  const verbo = pending.day_index < isoDayIndex() ? 'Recuperar' : 'Adelantar'
+  const cuando = `${verbo} el ${dayName(pending.day_index).toLowerCase()}`
+  const href = `/sesion/${pending.id}`
+
+  return (
+    <>
+      <WeekSummary marks={marks} />
+
+      <section className="flex flex-col gap-1">
+        <p className="eyebrow">Hoy no estaba en tu plan · ¿Vas al gym?</p>
+        <h1 className="display text-3xl">{pending.title}</h1>
+        <p className="text-sm text-[var(--fg-muted)]">
+          {`Es el entrenamiento del ${dayName(pending.day_index).toLowerCase()}`}
+          {' · '}
+          {pending.focus.map(muscleEs).join(' · ')}
+        </p>
+      </section>
+
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {exercises.map((ex) => (
+          <li key={ex.id} className="flex">
+            <ExercisePreview exercise={ex} translation={translations[ex.exercise_id]} href={href} />
+          </li>
+        ))}
+      </ul>
+
+      <Link
+        to={href}
+        className={buttonClass({ variant: 'volt', size: 'lg', full: true, className: 'sticky bottom-20' })}
+      >
+        {cuando}
+        <ChevronRight className="size-5" aria-hidden />
+      </Link>
+    </>
   )
 }
 
@@ -205,6 +267,7 @@ export function TodayView({ data, isFetching }: { data: TodayData; isFetching: b
     program,
     week,
     day,
+    pending = null,
     days = [],
     exercises = [],
     translations = {},
@@ -260,7 +323,14 @@ export function TodayView({ data, isFetching }: { data: TodayData; isFetching: b
 
         <InstallBanner />
 
-        {!day ? (
+        {!day && pending ? (
+          <PendingDay
+            pending={pending}
+            marks={marks}
+            exercises={exercises}
+            translations={translations as Record<string, ExerciseTranslation>}
+          />
+        ) : !day ? (
           <RestDay marks={marks} next={upcoming[0] ?? null} />
         ) : (
           <>
