@@ -4,7 +4,7 @@ import { findAlternatives as findAlternativesWith, type AlternativeCriteria } fr
 import type { Criteria, Exercise } from './types'
 
 export * from './types'
-export { GYM_CARDIO_IDS } from './filter'
+export { GYM_CARDIO_IDS, GYM_STAPLE_IDS } from './filter'
 export * from './alternatives'
 export * from './muscleMap'
 export * from './labels.es'

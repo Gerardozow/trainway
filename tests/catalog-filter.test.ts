@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterCandidates, getExercise, imageUrl, GYM_CARDIO_IDS, ALL_EXERCISES } from '@/lib/catalog'
+import { filterCandidates, getExercise, imageUrl, GYM_CARDIO_IDS, GYM_STAPLE_IDS, ALL_EXERCISES } from '@/lib/catalog'
 import { MUSCLE_ES, EQUIPMENT_ES } from '@/lib/catalog/labels.es'
 
 describe('filterCandidates', () => {
@@ -61,9 +61,9 @@ describe('filterCandidates', () => {
    * modelo nunca vio una sola máquina que poder elegir.
    *
    * La prueba anterior no lo detectaba porque pedía 200 candidatos. El límite
-   * de verdad, el que usa `worker/routes/plan.ts`, es 60.
+   * de verdad, el que usa `worker/routes/plan.ts`, es 90.
    */
-  const LIMITE_REAL = 60
+  const LIMITE_REAL = 90
 
   it('con el límite de verdad el cardio sigue llegando al modelo', () => {
     const out = filterCandidates({
@@ -164,6 +164,53 @@ describe('filterCandidates', () => {
     )
   })
 
+  /*
+   * El fallo que esto guarda: con ochocientos ejercicios empatados en
+   * puntuación, el desempate alfabético decidía qué veía el modelo. Sin foco,
+   * los sesenta candidatos eran de la A a la C —Anti-Gravity Press, Cable Judo
+   * Flip, Clean from Blocks— y faltaban prensa, jalón al pecho o curl femoral.
+   */
+  it('los básicos de cualquier gimnasio llegan al modelo aunque no haya foco', () => {
+    const ids = filterCandidates({
+      equipment: ['barbell', 'dumbbell', 'cable', 'machine'],
+      level: 'intermedio',
+      focusMuscles: [],
+      includeCardio: false,
+      limit: LIMITE_REAL,
+    }).map((e) => e.id)
+
+    for (const id of [
+      'Leg_Press',
+      'Wide-Grip_Lat_Pulldown',
+      'Seated_Cable_Rows',
+      'Lying_Leg_Curls',
+      'Triceps_Pushdown',
+    ]) {
+      expect(ids).toContain(id)
+    }
+    for (const rareza of ['Anti-Gravity_Press', 'Cable_Judo_Flip', 'Clean_from_Blocks']) {
+      expect(ids).not.toContain(rareza)
+    }
+  })
+
+  it('con foco en un grupo, el resto de grupos sigue teniendo sus básicos', () => {
+    const ids = filterCandidates({
+      equipment: ['barbell', 'dumbbell', 'cable', 'machine'],
+      level: 'intermedio',
+      focusMuscles: ['chest', 'glutes'],
+      includeCardio: false,
+      limit: LIMITE_REAL,
+    }).map((e) => e.id)
+
+    // Un día de pierna o de espalda tiene que poder armarse igual.
+    expect(ids).toContain('Leg_Press')
+    expect(ids).toContain('Wide-Grip_Lat_Pulldown')
+  })
+
+  it('todos los básicos existen en el catálogo', () => {
+    for (const id of GYM_STAPLE_IDS) expect(getExercise(id), id).toBeDefined()
+  })
+
   it('sin equipamiento cae a peso corporal en vez de devolver vacío', () => {
     const out = filterCandidates({
       equipment: [],
@@ -186,9 +233,7 @@ describe('getExercise e imageUrl', () => {
   })
 
   it('construye la url de jsDelivr', () => {
-    expect(imageUrl('X/0.jpg')).toBe(
-      'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/X/0.jpg',
-    )
+    expect(imageUrl('X/0.jpg')).toBe('https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/X/0.jpg')
   })
 })
 
