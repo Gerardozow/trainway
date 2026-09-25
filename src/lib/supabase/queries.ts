@@ -1,4 +1,5 @@
 import { supabase } from './client'
+import { mondayOf } from '@/lib/schedule'
 import type {
   DayWithExercises,
   ExerciseTranslation,
@@ -95,8 +96,10 @@ export async function getDayWithExercises(programDayId: string): Promise<DayWith
  * guarda: así no hay un contador que se desincronice si alguien se salta días.
  */
 export function currentWeek(program: Program, on: Date = new Date()): number {
-  const start = new Date(`${program.starts_on}T00:00:00`)
-  const elapsedDays = Math.floor((on.getTime() - start.getTime()) / 86_400_000)
+  // Desde el lunes de esa semana: los bloques anteriores guardaban el día en
+  // que se crearon, y la semana tiene que ir de lunes a domingo.
+  const start = mondayOf(new Date(`${program.starts_on}T00:00:00`))
+  const elapsedDays = Math.floor((mondayOf(on).getTime() - start.getTime()) / 86_400_000)
   return Math.min(program.weeks, Math.max(1, Math.floor(elapsedDays / 7) + 1))
 }
 

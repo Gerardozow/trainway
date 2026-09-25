@@ -262,28 +262,24 @@ export function sessionStreak(args: {
   week: number
   dayIndex: number
 }): number {
-  const { days, sessions, week, dayIndex } = args
+  const { days, sessions, week } = args
 
   const completed = new Set(
     sessions.filter((s) => s.completed_at).map((s) => s.program_day_id),
   )
 
-  const elapsed = days
-    .filter((d) => d.week < week || (d.week === week && d.day_index <= dayIndex))
-    .sort((a, b) => a.week - b.week || a.day_index - b.day_index)
+  /*
+   * Lo que rompe la racha es cerrar una semana con entrenamientos pendientes,
+   * no que un día pase sin hacerse: ese martes se puede recuperar el miércoles.
+   * La semana en curso suma lo hecho; las anteriores suman si se completaron
+   * enteras y cortan en cuanto una no.
+   */
+  let streak = days.filter((d) => d.week === week && completed.has(d.id)).length
 
-  let streak = 0
-
-  for (let i = elapsed.length - 1; i >= 0; i--) {
-    const day = elapsed[i]!
-    const isToday = day.week === week && day.day_index === dayIndex
-
-    if (completed.has(day.id)) {
-      streak++
-      continue
-    }
-    if (isToday) continue // aún puede entrenarse
-    break
+  for (let w = week - 1; w >= 1; w--) {
+    const weekDays = days.filter((d) => d.week === w)
+    if (weekDays.some((d) => !completed.has(d.id))) break
+    streak += weekDays.length
   }
 
   return streak

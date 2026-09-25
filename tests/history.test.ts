@@ -204,7 +204,9 @@ describe('sessionStreak', () => {
     ).toBe(3)
   })
 
-  it('se corta en el primer día saltado', () => {
+  // El martes que no se hizo todavía se puede recuperar esta semana: no rompe
+  // nada hasta que la semana se cierra con él pendiente.
+  it('un día saltado en la semana en curso no corta la racha', () => {
     expect(
       sessionStreak({
         days,
@@ -212,7 +214,29 @@ describe('sessionStreak', () => {
         week: 1,
         dayIndex: 5,
       }),
+    ).toBe(2)
+  })
+
+  it('una semana pasada con un pendiente corta la racha', () => {
+    expect(
+      sessionStreak({
+        days,
+        sessions: [session('a', true), session('c', true), session('d', true)],
+        week: 2,
+        dayIndex: 1,
+      }),
     ).toBe(1)
+  })
+
+  it('una semana pasada completa suma a la racha', () => {
+    expect(
+      sessionStreak({
+        days,
+        sessions: [session('a', true), session('b', true), session('c', true), session('d', true)],
+        week: 2,
+        dayIndex: 1,
+      }),
+    ).toBe(4)
   })
 
   it('el día de hoy sin terminar no rompe la racha', () => {
