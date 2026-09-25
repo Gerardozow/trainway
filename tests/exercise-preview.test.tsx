@@ -40,7 +40,7 @@ describe('ExercisePreview', () => {
   it('enseña nombre traducido, dosis con descanso y las dos fotos', () => {
     renderPreview({ exercise: ex(), translation })
     expect(screen.getByRole('heading', { name: 'Prensa de piernas' })).toBeInTheDocument()
-    expect(screen.getByText('3 × 10-12 · 90 s')).toBeInTheDocument()
+    expect(screen.getByText('3 × 10-12 · descanso 90 s')).toBeInTheDocument()
     expect(screen.getByAltText('Prensa de piernas, posición inicial')).toBeInTheDocument()
     expect(screen.getByAltText('Prensa de piernas, posición final')).toBeInTheDocument()
   })

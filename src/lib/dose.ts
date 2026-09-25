@@ -17,15 +17,25 @@ type DoseFields = Pick<
   'category' | 'target_sets' | 'target_reps' | 'target_duration_seconds' | 'rest_seconds'
 >
 
-/** "3 × 10-12 · 90 s", o "15 min" en cardio. */
+/** "3 × 10-12 · descanso 90 s", o "15 min" en cardio. */
 export function formatDose(ex: DoseFields): string {
   if (ex.category === 'cardio') {
     return `${Math.round((ex.target_duration_seconds ?? 0) / 60)} min`
   }
 
-  const volume = ex.target_reps ? `${ex.target_sets} × ${ex.target_reps}` : `${ex.target_sets} series`
+  // Un isométrico (plancha) llega con reps en null y el tiempo aparte: lo que
+  // se sostiene es la dosis, no un detalle.
+  const hold = !ex.target_reps && ex.target_duration_seconds ? formatRest(ex.target_duration_seconds) : null
+  const volume = ex.target_reps
+    ? `${ex.target_sets} × ${ex.target_reps}`
+    : hold
+      ? `${ex.target_sets} × ${hold}`
+      : `${ex.target_sets} series`
+
+  // Con la palabra delante: con dos tiempos en la misma línea, "60 s" a secas
+  // se confunde con lo que dura la serie.
   const rest = formatRest(ex.rest_seconds)
-  return rest ? `${volume} · ${rest}` : volume
+  return rest ? `${volume} · descanso ${rest}` : volume
 }
 
 export type PlanSummary = {

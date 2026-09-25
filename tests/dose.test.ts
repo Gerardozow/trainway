@@ -37,15 +37,23 @@ describe('formatRest', () => {
 
 describe('formatDose', () => {
   it('fuerza: series, reps y descanso', () => {
-    expect(formatDose(ex())).toBe('3 × 10-12 · 90 s')
+    expect(formatDose(ex())).toBe('3 × 10-12 · descanso 90 s')
   })
 
   it('sin reps no deja un × colgando', () => {
-    expect(formatDose(ex({ target_reps: null }))).toBe('3 series · 90 s')
+    expect(formatDose(ex({ target_reps: null }))).toBe('3 series · descanso 90 s')
+  })
+
+  // Una plancha se prescribe con reps en null y la duración aparte. Sin esto la
+  // tarjeta decía "3 series · 60 s" y se leía como un minuto de plancha.
+  it('isométricos: enseña cuánto se sostiene y etiqueta el descanso', () => {
+    expect(formatDose(ex({ target_reps: null, target_duration_seconds: 30, rest_seconds: 60 }))).toBe(
+      '3 × 30 s · descanso 60 s',
+    )
   })
 
   it('reps no numéricas se muestran tal cual', () => {
-    expect(formatDose(ex({ target_reps: 'AMRAP' }))).toBe('3 × AMRAP · 90 s')
+    expect(formatDose(ex({ target_reps: 'AMRAP' }))).toBe('3 × AMRAP · descanso 90 s')
   })
 
   it('sin descanso se omite el separador', () => {

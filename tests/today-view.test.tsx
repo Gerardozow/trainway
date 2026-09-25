@@ -71,7 +71,7 @@ describe('Hoy', () => {
     renderToday()
     expect(screen.getByAltText('Prensa de piernas, posición inicial')).toBeInTheDocument()
     expect(screen.getByAltText('Prensa de piernas, posición final')).toBeInTheDocument()
-    expect(screen.getByText('3 × 10-12 · 90 s')).toBeInTheDocument()
+    expect(screen.getByText('3 × 10-12 · descanso 90 s')).toBeInTheDocument()
   })
 
   it('tocar el ejercicio entra al entreno', () => {
